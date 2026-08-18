@@ -111,7 +111,7 @@ private struct UsagePopoverView: View {
             .foregroundStyle(.secondary)
 
             if let updatedAt = model.updatedAt {
-                Text("Aggiornato \(updatedAt.date, style: .relative)")
+                Text("\(model.availability == .offline ? "Controllato" : "Aggiornato") \(updatedAt.date, style: .relative)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
