@@ -121,19 +121,16 @@ private struct UsagePopoverView: View {
                         draggedSubscription = subscription.subscription
                         return NSItemProvider(object: subscription.subscription.rawValue as NSString)
                     }
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let rawValue = items.first,
-                              let dragged = Subscription(rawValue: rawValue) else {
-                            draggedSubscription = nil
-                            dropTarget = nil
-                            return false
-                        }
-                        return completeDrop(
-                            on: subscription.subscription,
-                            dragged: dragged
+                    .onDrop(
+                        of: [.text],
+                        isTargeted: Binding(
+                            get: { dropTarget == subscription.subscription },
+                            set: { targeted in
+                                dropTarget = targeted ? subscription.subscription : nil
+                            }
                         )
-                    } isTargeted: { targeted in
-                        dropTarget = targeted ? subscription.subscription : nil
+                    ) { _, _ in
+                        completeDrop(on: subscription.subscription)
                     }
                     .overlay {
                         if dropTarget == subscription.subscription {
@@ -202,8 +199,9 @@ private struct UsagePopoverView: View {
         SubscriptionOrderStore.save(orderedSubscriptions)
     }
 
-    private func completeDrop(on target: Subscription, dragged: Subscription) -> Bool {
-        guard dragged != target,
+    private func completeDrop(on target: Subscription) -> Bool {
+        guard let dragged = draggedSubscription,
+              dragged != target,
               let draggedIndex = displaySubscriptions.firstIndex(where: { $0.subscription == dragged }),
               let targetIndex = displaySubscriptions.firstIndex(where: { $0.subscription == target }) else {
             draggedSubscription = nil
