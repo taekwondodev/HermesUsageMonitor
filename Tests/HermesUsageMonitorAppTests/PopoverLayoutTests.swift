@@ -1,4 +1,5 @@
 import Foundation
+import HermesUsageCore
 import Testing
 @testable import HermesUsageMonitorApp
 
@@ -27,5 +28,47 @@ struct HermesUsageMonitorAppTests {
             }
             #expect(matches)
         }
+    }
+
+    @Test("subscription order normalizes duplicates and unknown omissions")
+    func subscriptionOrderNormalizes() {
+        #expect(
+            SubscriptionOrderStore.normalize([.chatGPT, .chatGPT]) ==
+                [.chatGPT, .nousPortal, .opencodeGo]
+        )
+    }
+
+    @Test("subscription order supports accessible move commands")
+    func subscriptionOrderMovesItems() {
+        let order: [Subscription] = [.nousPortal, .opencodeGo, .chatGPT]
+        #expect(
+            SubscriptionOrderStore.moved(order, item: .chatGPT, by: -1) ==
+                [.nousPortal, .chatGPT, .opencodeGo]
+        )
+        #expect(
+            SubscriptionOrderStore.moved(order, item: .nousPortal, by: -1) == order
+        )
+
+        #expect(
+            SubscriptionOrderStore.moved(
+                [.chatGPT, .nousPortal, .opencodeGo],
+                visibleItems: [.chatGPT, .opencodeGo],
+                item: .opencodeGo,
+                by: -1
+            ) == [.opencodeGo, .chatGPT, .nousPortal]
+        )
+    }
+
+    @Test("persisted subscription order is normalized on load")
+    func persistedSubscriptionOrderIsNormalized() {
+        let suiteName = "HermesUsageMonitorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(["chatgpt", "unknown", "chatgpt"], forKey: "subscriptionOrder.v1")
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(
+            SubscriptionOrderStore.load(defaults: defaults) ==
+                [.chatGPT, .nousPortal, .opencodeGo]
+        )
     }
 }

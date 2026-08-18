@@ -2,6 +2,7 @@ import HermesUsageCore
 import Observation
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct HermesUsageMonitorApp: App {
@@ -87,6 +88,9 @@ private final class UsageViewModel {
 private struct UsagePopoverView: View {
     let model: UsageViewModel
     @State private var expandedSubscriptions: Set<Subscription> = []
+    @State private var orderedSubscriptions = SubscriptionOrderStore.load()
+    @State private var draggedSubscription: Subscription?
+    @State private var dropTarget: Subscription?
 
     var body: some View {
         ScrollView(.vertical) {
@@ -97,7 +101,7 @@ private struct UsagePopoverView: View {
                 .padding(.vertical, 10)
 
             VStack(spacing: 10) {
-                ForEach(model.subscriptions) { subscription in
+                ForEach(displaySubscriptions) { subscription in
                     SubscriptionCard(
                         subscription: subscription,
                         accounting: model.accountingBySubscription[subscription.subscription] ?? [],
@@ -110,8 +114,31 @@ private struct UsagePopoverView: View {
                                     expanded: expanded
                                 )
                             }
+                        ),
+                        onMove: moveSubscription
+                    )
+                    .onDrag {
+                        draggedSubscription = subscription.subscription
+                        return NSItemProvider(object: subscription.subscription.rawValue as NSString)
+                    }
+                    .onDrop(
+                        of: [.text],
+                        delegate: SubscriptionDropDelegate(
+                            target: subscription.subscription,
+                            items: $orderedSubscriptions,
+                            draggedItem: $draggedSubscription,
+                            dropTarget: $dropTarget,
+                            save: saveSubscriptionOrder
                         )
                     )
+                    .overlay {
+                        if dropTarget == subscription.subscription {
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.accentColor, lineWidth: 2)
+                                .padding(1)
+                                .allowsHitTesting(false)
+                        }
+                    }
                 }
             }
 
@@ -146,6 +173,31 @@ private struct UsagePopoverView: View {
         }
     }
 
+    private var displaySubscriptions: [SubscriptionQuota] {
+        let bySubscription = Dictionary(uniqueKeysWithValues: model.subscriptions.map {
+            ($0.subscription, $0)
+        })
+        let ordered = orderedSubscriptions.compactMap { bySubscription[$0] }
+        let missing = model.subscriptions.filter { !orderedSubscriptions.contains($0.subscription) }
+        return ordered + missing
+    }
+
+    private func moveSubscription(_ subscription: Subscription, by offset: Int) {
+        let updatedOrder = SubscriptionOrderStore.moved(
+            orderedSubscriptions,
+            visibleItems: displaySubscriptions.map(\.subscription),
+            item: subscription,
+            by: offset
+        )
+        guard updatedOrder != orderedSubscriptions else { return }
+        orderedSubscriptions = updatedOrder
+        saveSubscriptionOrder()
+    }
+
+    private func saveSubscriptionOrder() {
+        SubscriptionOrderStore.save(orderedSubscriptions)
+    }
+
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
@@ -173,6 +225,7 @@ private struct SubscriptionCard: View {
     let accounting: [LocalAccounting]
     let accountingAvailability: AccountingAvailability
     @Binding var isAccountingExpanded: Bool
+    let onMove: (Subscription, Int) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -183,6 +236,19 @@ private struct SubscriptionCard: View {
                     .font(.headline)
 
                 Spacer()
+
+                Menu {
+                    Button("Sposta prima") {
+                        onMove(subscription.subscription, -1)
+                    }
+                    Button("Sposta dopo") {
+                        onMove(subscription.subscription, 1)
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+                .menuStyle(.borderlessButton)
+                .accessibilityLabel("Riordina \(subscription.subscription.displayName)")
 
                 Text(subscription.statusLabel)
                     .font(.caption)
@@ -404,6 +470,88 @@ enum PopoverLayout {
     static let minimumHeight: CGFloat = 500
     static let idealHeight: CGFloat = 500
     static let maximumHeight: CGFloat = 640
+}
+
+enum SubscriptionOrderStore {
+    private static let key = "subscriptionOrder.v1"
+
+    static func load(defaults: UserDefaults = .standard) -> [Subscription] {
+        let rawValues = defaults.array(forKey: key) as? [String] ?? []
+        return normalize(rawValues.compactMap(Subscription.init(rawValue:)))
+    }
+
+    static func save(_ order: [Subscription], defaults: UserDefaults = .standard) {
+        defaults.set(order.map(\.rawValue), forKey: key)
+    }
+
+    static func normalize(_ order: [Subscription]) -> [Subscription] {
+        var result: [Subscription] = []
+        for subscription in order where !result.contains(subscription) {
+            result.append(subscription)
+        }
+        for subscription in Subscription.allCases where !result.contains(subscription) {
+            result.append(subscription)
+        }
+        return result
+    }
+
+    static func moved(
+        _ order: [Subscription],
+        visibleItems: [Subscription] = Subscription.allCases,
+        item: Subscription,
+        by offset: Int
+    ) -> [Subscription] {
+        guard let index = visibleItems.firstIndex(of: item) else { return order }
+        let destination = min(max(index + offset, 0), visibleItems.count - 1)
+        guard destination != index else { return order }
+        let target = visibleItems[destination]
+        var result = order
+        result.removeAll { $0 == item }
+        guard let targetIndex = result.firstIndex(of: target) else { return order }
+        result.insert(item, at: destination > index ? targetIndex + 1 : targetIndex)
+        return result
+    }
+}
+
+private struct SubscriptionDropDelegate: DropDelegate {
+    let target: Subscription
+    @Binding var items: [Subscription]
+    @Binding var draggedItem: Subscription?
+    @Binding var dropTarget: Subscription?
+    let save: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        dropTarget = target
+        guard let draggedItem,
+              draggedItem != target,
+              let fromIndex = items.firstIndex(of: draggedItem),
+              let targetIndex = items.firstIndex(of: target) else { return }
+
+        withAnimation(.snappy) {
+            items.move(
+                fromOffsets: IndexSet(integer: fromIndex),
+                toOffset: targetIndex > fromIndex ? targetIndex + 1 : targetIndex
+            )
+        }
+        save()
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedItem = nil
+        dropTarget = nil
+        save()
+        return true
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTarget == target {
+            dropTarget = nil
+        }
+    }
 }
 
 private struct AccountingDetail: View {
