@@ -34,7 +34,7 @@ public struct HermesQuotaSnapshotReader: QuotaSnapshotSource, Sendable {
             switch error {
             case .unsupportedVersion:
                 return .unavailable(.unsupportedVersion)
-            case .invalidPercentage, .invalidSnapshot:
+            case .invalidPercentage, .invalidProfile, .invalidSnapshot:
                 return .unavailable(.malformedSnapshot)
             }
         } catch DecodingError.dataCorrupted, DecodingError.keyNotFound,

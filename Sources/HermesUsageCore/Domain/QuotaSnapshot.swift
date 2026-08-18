@@ -2,6 +2,7 @@ import Foundation
 
 public enum QuotaDomainError: Error, Equatable, Sendable {
     case invalidPercentage
+    case invalidProfile
     case invalidSnapshot
     case unsupportedVersion
 }

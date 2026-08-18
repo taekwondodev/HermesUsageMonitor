@@ -106,10 +106,65 @@ struct HermesQuotaSnapshotReaderIntegrationTests {
         #expect(result == .unavailable(.unsupportedVersion))
     }
 
+    @Test("discovers quota snapshots across Hermes profiles")
+    func discoversProfiles() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try writeSnapshot(
+            subscription: "nous-portal",
+            usedPercent: 20,
+            to: root.appendingPathComponent("profiles/alpha/usage/quota-snapshot.json")
+        )
+        try writeSnapshot(
+            subscription: "chatgpt",
+            usedPercent: 40,
+            to: root.appendingPathComponent("profiles/beta/usage/quota-snapshot.json")
+        )
+
+        let observations = HermesProfileQuotaSnapshotReader(
+            hermesHome: root,
+            now: { Date(timeIntervalSince1970: 500) }
+        ).read()
+
+        #expect(observations.count == 2)
+        #expect(observations.map(\.profile.value) == ["alpha", "beta"])
+        #expect(observations.map(\.subscription) == [.nousPortal, .chatGPT])
+    }
+
     private func makeTemporarySnapshot(_ json: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try Data(json.utf8).write(to: url, options: [.atomic])
         return url
+    }
+
+    private func writeSnapshot(
+        subscription: String,
+        usedPercent: Double,
+        to url: URL
+    ) throws {
+        let json = """
+        {
+          "version": 1,
+          "subscription": "\(subscription)",
+          "capturedAt": "2030-03-17T12:00:00Z",
+          "freshness": "persisted",
+          "source": "hermes-account-usage",
+          "windows": [
+            {
+              "kind": "rolling-5h",
+              "label": "5 hours",
+              "usedPercent": \(usedPercent)
+            }
+          ]
+        }
+        """
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data(json.utf8).write(to: url, options: [.atomic])
     }
 }
