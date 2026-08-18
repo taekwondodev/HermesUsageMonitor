@@ -39,13 +39,15 @@ public struct QuotaSnapshot: Equatable, Sendable {
     }
 
     public func withFreshness(_ freshness: QuotaFreshness) -> QuotaSnapshot {
-        (try? QuotaSnapshot(
-            subscription: subscription,
-            capturedAt: capturedAt,
-            freshness: freshness,
-            windows: windows,
-            source: source
-        )) ?? self
+        QuotaSnapshot(copying: self, freshness: freshness)
+    }
+
+    private init(copying snapshot: QuotaSnapshot, freshness: QuotaFreshness) {
+        subscription = snapshot.subscription
+        capturedAt = snapshot.capturedAt
+        self.freshness = freshness
+        windows = snapshot.windows
+        source = snapshot.source
     }
 }
 
