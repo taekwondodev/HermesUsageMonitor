@@ -45,7 +45,7 @@ public actor ProfileQuotaRefreshService {
         observer: any ProfileQuotaRefreshObserver = OSLogProfileQuotaRefreshObserver()
     ) {
         self.init(
-            source: HermesProfileQuotaSnapshotReader(hermesHome: hermesHome, now: clock),
+            source: HermesUsageCommandReader(hermesHome: hermesHome),
             clock: clock,
             observer: observer
         )

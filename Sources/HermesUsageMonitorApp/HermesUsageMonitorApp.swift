@@ -43,7 +43,7 @@ private final class UsageViewModel {
                 .appendingPathComponent(".hermes", isDirectory: true)
         service = ProfileQuotaRefreshService(hermesHome: hermesHome)
         resetService = QuotaResetNotificationService(notifier: MacOSQuotaResetNotifier())
-        accountingService = LocalAccountingService(source: HermesAccountingReader())
+        accountingService = LocalAccountingService(source: HermesStateDBAccountingReader(hermesHome: hermesHome))
         subscriptions = Subscription.allCases.map {
             SubscriptionQuota(subscription: $0, result: .unavailable(.sourceMissing))
         }

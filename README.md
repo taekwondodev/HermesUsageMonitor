@@ -10,19 +10,15 @@ This repository contains the initial SwiftUI menu bar scaffold:
 - menu bar-only app using `MenuBarExtra`
 - fixed app icon
 - three subscription groups: Nous Portal, OpenCode Go, and ChatGPT
-- empty-state UI while Hermes data integration is pending
+- quota/accounting UI backed by Hermes Agent's live usage bridge
 
 The app is intentionally read-only. Hermes integration, quota snapshots, profile aggregation, and reset notifications will be implemented from the approved product specification.
 
-## Hermes quota snapshot contract
+## Hermes data bridge
 
-The first repository adapter reads a read-only snapshot at `$HERMES_HOME/usage/quota-snapshot.json`, or `~/.hermes/usage/quota-snapshot.json` when `HERMES_HOME` is unset. Hermes may write the snapshot; this app never creates or modifies it.
+Quota data is read from the machine-readable `hermes usage --json` command, which reuses Hermes Agent's existing authentication and provider/account-usage code. The app never stores provider credentials and never asks the providers to authenticate separately.
 
-The current contract uses `version: 1`, an ISO-8601 `capturedAt`, a `freshness` value (`live`, `persisted`, or `stale`), one commercial subscription, a source identifier, and quota windows with `rolling-5h`, `daily`, `weekly`, or `monthly` kinds. Percentages must be finite values from 0 through 100. Missing, malformed, unsupported, or unreadable snapshots are reported as unavailable rather than estimated.
-
-## Hermes local accounting contract
-
-Hermes local accounting is read from `$HERMES_HOME/usage/accounting.json`, or `~/.hermes/usage/accounting.json` when `HERMES_HOME` is unset. The app never writes this file. Version 1 contains an `entries` array grouped by commercial `subscription`; each entry may include a `profile`, `tokens`, `requests`, `models`, `provider`, and `cost`. Missing fields remain unavailable and are not estimated. Multiple profiles are displayed under their commercial subscription, with technical provider/model detail secondary to that grouping.
+Hermes local accounting is read read-only from the profile's `state.db` via SQLite. The app maps technical providers such as `nous` and `openai-codex` to commercial subscriptions and keeps unknown or unavailable sources explicit. It never derives a quota percentage from historical token usage.
 
 ## Open in Xcode
 
