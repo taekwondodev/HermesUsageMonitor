@@ -472,7 +472,15 @@ private struct SubscriptionIdentityIcon: View {
 }
 
 enum ProviderAssetCatalog {
-    static let bundle = Bundle.module
+    static let bundle: Bundle = {
+        if let url = Bundle.main.url(
+            forResource: "HermesUsageMonitor_HermesUsageMonitorApp",
+            withExtension: "bundle"
+        ), let bundle = Bundle(url: url) {
+            return bundle
+        }
+        return Bundle.module
+    }()
     static let nousPortal = "nous-portal"
     static let opencodeGo = "opencode-go"
     static let chatGPT = "chatgpt"

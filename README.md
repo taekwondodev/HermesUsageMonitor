@@ -29,3 +29,13 @@ Open `Package.swift` in Xcode 26.6 and run the `HermesUsageMonitor` executable s
 ```bash
 swift build
 ```
+
+## Install the local app bundle
+
+To build, ad-hoc sign, install, and launch the personal menu bar app:
+
+```bash
+./scripts/build-app.sh
+```
+
+The script installs `HermesUsageMonitor.app` in `~/Applications`. If an existing instance is running, it asks for confirmation before replacing it. `swift run HermesUsageMonitor` remains a development mode; because it is not a `.app` bundle, UserNotifications are intentionally disabled in that mode.
