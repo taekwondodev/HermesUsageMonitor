@@ -2,7 +2,6 @@ import HermesUsageCore
 import Observation
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 @main
 struct HermesUsageMonitorApp: App {
@@ -89,65 +88,42 @@ private struct UsagePopoverView: View {
     let model: UsageViewModel
     @State private var expandedSubscriptions: Set<Subscription> = []
     @State private var orderedSubscriptions = SubscriptionOrderStore.load()
-    @State private var draggedSubscription: Subscription?
-    @State private var dropTarget: Subscription?
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 0) {
+        List {
             header
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
 
             Divider()
                 .padding(.vertical, 10)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
 
-            VStack(spacing: 10) {
-                ForEach(displaySubscriptions) { subscription in
+            ForEach(displaySubscriptions.map(\.subscription), id: \.self) { subscription in
+                if let quota = model.subscriptions.first(where: { $0.subscription == subscription }) {
                     SubscriptionCard(
-                        subscription: subscription,
-                        accounting: model.accountingBySubscription[subscription.subscription] ?? [],
+                        subscription: quota,
+                        accounting: model.accountingBySubscription[subscription] ?? [],
                         accountingAvailability: model.accountingAvailability,
                         isAccountingExpanded: Binding(
-                            get: { expandedSubscriptions.contains(subscription.subscription) },
+                            get: { expandedSubscriptions.contains(subscription) },
                             set: { expanded in
-                                setAccounting(
-                                    for: subscription.subscription,
-                                    expanded: expanded
-                                )
+                                setAccounting(for: subscription, expanded: expanded)
                             }
                         ),
                         onMove: moveSubscription
                     )
-                    .onDrag {
-                        draggedSubscription = subscription.subscription
-                        return NSItemProvider(object: subscription.subscription.rawValue as NSString)
-                    }
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let rawValue = items.first,
-                              let dragged = Subscription(rawValue: rawValue) else {
-                            draggedSubscription = nil
-                            dropTarget = nil
-                            return false
-                        }
-                        return completeDrop(
-                            on: subscription.subscription,
-                            dragged: dragged
-                        )
-                    } isTargeted: { targeted in
-                        dropTarget = targeted ? subscription.subscription : nil
-                    }
-                    .overlay {
-                        if dropTarget == subscription.subscription {
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.accentColor, lineWidth: 2)
-                                .padding(1)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 10, trailing: 0))
+                    .listRowSeparator(.hidden)
                 }
             }
+            .onMove(perform: moveSubscriptions)
 
             Divider()
                 .padding(.vertical, 10)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
 
             Label(
                 model.availability.label,
@@ -155,18 +131,29 @@ private struct UsagePopoverView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
 
             if let updatedAt = model.updatedAt {
                 Text("\(model.availability == .offline ? "Controllato" : "Aggiornato") \(updatedAt.date, style: .relative)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
             }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .listStyle(.plain)
         .padding(16)
         .frame(width: 380)
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
+    }
+
+    private func moveSubscriptions(from source: IndexSet, to destination: Int) {
+        guard let index = source.first,
+              index < displaySubscriptions.count else { return }
+        let item = displaySubscriptions[index].subscription
+        let offset = destination > index ? destination - index - 1 : destination - index
+        moveSubscription(item, by: offset)
     }
 
     private func setAccounting(for subscription: Subscription, expanded: Bool) {
@@ -202,28 +189,6 @@ private struct UsagePopoverView: View {
         SubscriptionOrderStore.save(orderedSubscriptions)
     }
 
-    private func completeDrop(on target: Subscription, dragged: Subscription) -> Bool {
-        guard dragged != target,
-              let draggedIndex = displaySubscriptions.firstIndex(where: { $0.subscription == dragged }),
-              let targetIndex = displaySubscriptions.firstIndex(where: { $0.subscription == target }) else {
-            draggedSubscription = nil
-            dropTarget = nil
-            return false
-        }
-
-        orderedSubscriptions = SubscriptionOrderStore.movedBefore(
-            orderedSubscriptions,
-            visibleItems: displaySubscriptions.map(\.subscription),
-            item: dragged,
-            target: target
-        )
-        if draggedIndex != targetIndex {
-            saveSubscriptionOrder()
-        }
-        draggedSubscription = nil
-        dropTarget = nil
-        return true
-    }
 
     private var header: some View {
         HStack(alignment: .top) {
