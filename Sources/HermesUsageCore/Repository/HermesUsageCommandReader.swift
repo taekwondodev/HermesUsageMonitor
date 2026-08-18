@@ -108,13 +108,13 @@ private extension HermesUsageCommandReader {
 
         if let executable = executable ?? discoverHermesExecutable() {
             process.executableURL = executable
-            process.arguments = ["usage", "--json", "--provider", "nous", "--provider", "openai-codex"]
+            process.arguments = ["usage", "--json", "--provider", "nous", "--provider", "openai-codex", "--provider", "opencode-go"]
         } else {
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = ["hermes", "usage", "--json", "--provider", "nous", "--provider", "openai-codex"]
+            process.arguments = ["hermes", "usage", "--json", "--provider", "nous", "--provider", "openai-codex", "--provider", "opencode-go"]
         }
         var environment = ProcessInfo.processInfo.environment
-        environment["HERMES_HOME"] = hermesHome.path
+        environment["HERMES_HOME"] = hermesCommandHome.path
         process.environment = environment
 
         do {
@@ -141,5 +141,11 @@ private extension HermesUsageCommandReader {
         let candidate = profileRoot
             .appendingPathComponent("hermes-agent/venv/bin/hermes")
         return FileManager.default.isExecutableFile(atPath: candidate.path) ? candidate : nil
+    }
+
+    var hermesCommandHome: URL {
+        hermesHome.deletingLastPathComponent().lastPathComponent == "profiles"
+            ? hermesHome.deletingLastPathComponent().deletingLastPathComponent()
+            : hermesHome
     }
 }
