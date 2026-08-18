@@ -4,7 +4,7 @@ import Testing
 
 struct ProfileQuotaAggregationTests {
     @Test("returns stable subscription groups without exposing profiles")
-    func returnsStableSubscriptionGroups() throws {
+    func returnsStableSubscriptionGroups() async throws {
         let observations = [
             try observation(
                 profile: "work",
@@ -20,7 +20,7 @@ struct ProfileQuotaAggregationTests {
             )
         ]
 
-        let result = ProfileQuotaAggregationService(
+        let result = await ProfileQuotaAggregationService(
             source: StubSource(observations: observations)
         ).read()
 
@@ -32,7 +32,7 @@ struct ProfileQuotaAggregationTests {
     }
 
     @Test("does not sum duplicate quota snapshots from profiles")
-    func doesNotSumDuplicates() throws {
+    func doesNotSumDuplicates() async throws {
         let observations = [
             try observation(
                 profile: "first",
@@ -48,7 +48,7 @@ struct ProfileQuotaAggregationTests {
             )
         ]
 
-        let result = ProfileQuotaAggregationService(
+        let result = await ProfileQuotaAggregationService(
             source: StubSource(observations: observations)
         ).read()
 
@@ -60,7 +60,7 @@ struct ProfileQuotaAggregationTests {
     }
 
     @Test("chooses the newest reliable snapshot when profiles conflict")
-    func choosesNewestReliableSnapshot() throws {
+    func choosesNewestReliableSnapshot() async throws {
         let observations = [
             try observation(
                 profile: "old",
@@ -76,7 +76,7 @@ struct ProfileQuotaAggregationTests {
             )
         ]
 
-        let result = ProfileQuotaAggregationService(
+        let result = await ProfileQuotaAggregationService(
             source: StubSource(observations: observations)
         ).read()
 
@@ -88,7 +88,7 @@ struct ProfileQuotaAggregationTests {
     }
 
     @Test("prefers live data over an older persisted snapshot")
-    func prefersMoreReliableFreshness() throws {
+    func prefersMoreReliableFreshness() async throws {
         let observations = [
             try observation(
                 profile: "persisted",
@@ -106,7 +106,7 @@ struct ProfileQuotaAggregationTests {
             )
         ]
 
-        let result = ProfileQuotaAggregationService(
+        let result = await ProfileQuotaAggregationService(
             source: StubSource(observations: observations)
         ).read()
 
@@ -170,7 +170,7 @@ struct ProfileQuotaAggregationTests {
     private struct StubSource: ProfileQuotaSource {
         let observations: [ProfileQuotaObservation]
 
-        func read() -> [ProfileQuotaObservation] {
+        func read() async -> [ProfileQuotaObservation] {
             observations
         }
     }

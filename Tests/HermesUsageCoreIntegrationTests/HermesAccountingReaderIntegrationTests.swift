@@ -9,13 +9,13 @@ struct HermesAccountingReaderIntegrationTests {
             """
             {"version":1,"entries":[
               {"subscription":"chatgpt","profile":"work","tokens":{"input":100,"output":25},"requests":2,"models":["gpt-5"],"provider":"openai"},
-              {"subscription":"chatgpt","profile":"personal","requests":1,"models":[],"provider":"openai"}
+              {"subscription":"chatgpt","profile":"personal","requests":1,"provider":"openai"}
             ]}
             """
         )
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let values = HermesAccountingReader(fileURL: fileURL).read()
+        let values = try HermesAccountingReader(fileURL: fileURL).read()
         #expect(values.count == 2)
         #expect(values[0].tokens?.total == 125)
         #expect(values[0].cost == nil)
@@ -35,7 +35,7 @@ struct HermesAccountingReaderIntegrationTests {
         )
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let grouped = LocalAccountingService(source: HermesAccountingReader(fileURL: fileURL))
+        let grouped = try LocalAccountingService(source: HermesAccountingReader(fileURL: fileURL))
             .readGroupedBySubscription()
         #expect(grouped[.nousPortal]?.first?.profile == "one")
         #expect(grouped[.nousPortal]?.first?.cost?.currency == "USD")

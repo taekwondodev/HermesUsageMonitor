@@ -12,7 +12,7 @@ struct HermesProfileQuotaSnapshotReader: ProfileQuotaSource, Sendable {
         self.now = now
     }
 
-    func read() -> [ProfileQuotaObservation] {
+    func read() async -> [ProfileQuotaObservation] {
         let fileManager = FileManager.default
         let rootURL = hermesHome.appendingPathComponent(
             HermesQuotaSnapshotContract.relativePath

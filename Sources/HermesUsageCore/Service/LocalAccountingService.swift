@@ -1,7 +1,7 @@
 import Foundation
 
 public protocol LocalAccountingSource: Sendable {
-    func read() -> [LocalAccounting]
+    func read() throws -> [LocalAccounting]
 }
 
 extension HermesAccountingReader: LocalAccountingSource {}
@@ -13,7 +13,7 @@ public struct LocalAccountingService: Sendable {
         self.source = source
     }
 
-    public func readGroupedBySubscription() -> [Subscription: [LocalAccounting]] {
-        Dictionary(grouping: source.read(), by: \.subscription)
+    public func readGroupedBySubscription() throws -> [Subscription: [LocalAccounting]] {
+        Dictionary(grouping: try source.read(), by: \.subscription)
     }
 }

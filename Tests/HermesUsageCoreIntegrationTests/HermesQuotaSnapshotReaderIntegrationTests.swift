@@ -107,7 +107,7 @@ struct HermesQuotaSnapshotReaderIntegrationTests {
     }
 
     @Test("discovers quota snapshots across Hermes profiles")
-    func discoversProfiles() throws {
+    func discoversProfiles() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -123,7 +123,7 @@ struct HermesQuotaSnapshotReaderIntegrationTests {
             to: root.appendingPathComponent("profiles/beta/usage/quota-snapshot.json")
         )
 
-        let observations = HermesProfileQuotaSnapshotReader(
+        let observations = await HermesProfileQuotaSnapshotReader(
             hermesHome: root,
             now: { Date(timeIntervalSince1970: 500) }
         ).read()

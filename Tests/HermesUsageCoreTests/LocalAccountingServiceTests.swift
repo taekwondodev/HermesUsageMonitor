@@ -8,7 +8,7 @@ struct LocalAccountingServiceTests {
         let first = try LocalAccounting(
             subscription: .chatGPT,
             profile: "work",
-            tokens: AccountingTokens(input: 100, output: 25),
+            tokens: try AccountingTokens(input: 100, output: 25),
             requests: 2,
             models: ["gpt-5"],
             provider: "openai"
@@ -22,7 +22,7 @@ struct LocalAccountingServiceTests {
             provider: "openai"
         )
         let other = try LocalAccounting(subscription: .nousPortal, requests: 4)
-        let grouped = LocalAccountingService(source: StubSource([first, second, other]))
+        let grouped = try LocalAccountingService(source: StubSource([first, second, other]))
             .readGroupedBySubscription()
 
         #expect(grouped[.chatGPT]?.count == 2)
@@ -32,9 +32,22 @@ struct LocalAccountingServiceTests {
         #expect(grouped[.opencodeGo] == nil)
     }
 
+    @Test("rejects negative accounting metrics")
+    func rejectsNegativeMetrics() {
+        #expect(throws: AccountingDomainError.invalidTokenCount) {
+            _ = try AccountingTokens(input: -1)
+        }
+        #expect(throws: AccountingDomainError.invalidRequestCount) {
+            _ = try LocalAccounting(subscription: .chatGPT, requests: -1)
+        }
+        #expect(throws: AccountingDomainError.invalidCost) {
+            _ = try AccountingCost(amount: -0.01, currency: "USD")
+        }
+    }
+
     private struct StubSource: LocalAccountingSource {
         let values: [LocalAccounting]
         init(_ values: [LocalAccounting]) { self.values = values }
-        func read() -> [LocalAccounting] { values }
+        func read() throws -> [LocalAccounting] { values }
     }
 }

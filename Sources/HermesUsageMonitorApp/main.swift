@@ -6,6 +6,12 @@ import SwiftUI
 struct HermesUsageMonitorApp: App {
     @State private var model = UsageViewModel()
 
+    init() {
+        let model = UsageViewModel()
+        _model = State(initialValue: model)
+        Task { await model.startAutomaticRefresh() }
+    }
+
     var body: some Scene {
         MenuBarExtra {
             UsagePopoverView(model: model)
@@ -21,22 +27,58 @@ struct HermesUsageMonitorApp: App {
 @Observable
 private final class UsageViewModel {
     var subscriptions: [SubscriptionQuota]
+    var availability: RefreshAvailability = .waiting
+    var updatedAt: QuotaTimestamp?
+    var accountingBySubscription: [Subscription: [LocalAccounting]] = [:]
+    var accountingAvailability: AccountingAvailability = .waiting
 
-    private let service: ProfileQuotaAggregationService
+    private let service: ProfileQuotaRefreshService
+    private let accountingService: LocalAccountingService
 
     init() {
         let hermesHome = ProcessInfo.processInfo.environment["HERMES_HOME"]
             .map(URL.init(fileURLWithPath:))
             ?? FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".hermes", isDirectory: true)
-        service = ProfileQuotaAggregationService(hermesHome: hermesHome)
-        subscriptions = service.read()
+        service = ProfileQuotaRefreshService(hermesHome: hermesHome)
+        accountingService = LocalAccountingService(source: HermesAccountingReader())
+        subscriptions = Subscription.allCases.map {
+            SubscriptionQuota(subscription: $0, result: .unavailable(.sourceMissing))
+        }
+    }
+
+    func refresh() async {
+        let state = await service.refresh()
+        subscriptions = state.subscriptions
+        availability = state.availability
+        updatedAt = state.updatedAt
+        do {
+            accountingBySubscription = try accountingService.readGroupedBySubscription()
+            accountingAvailability = .available
+        } catch let error as LocalAccountingReadError {
+            accountingBySubscription = [:]
+            accountingAvailability = .unavailable(error.label)
+        } catch {
+            accountingBySubscription = [:]
+            accountingAvailability = .unavailable("La contabilità locale non è leggibile.")
+        }
+    }
+
+    func startAutomaticRefresh() async {
+        await refresh()
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(for: ProfileQuotaRefreshService.defaultInterval)
+            } catch {
+                return
+            }
+            await refresh()
+        }
     }
 }
 
 private struct UsagePopoverView: View {
     let model: UsageViewModel
-    @State private var accountingBySubscription: [Subscription: [LocalAccounting]] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -49,7 +91,8 @@ private struct UsagePopoverView: View {
                 ForEach(model.subscriptions) { subscription in
                     SubscriptionCard(
                         subscription: subscription,
-                        accounting: accountingBySubscription[subscription.subscription] ?? []
+                        accounting: model.accountingBySubscription[subscription.subscription] ?? [],
+                        accountingAvailability: model.accountingAvailability
                     )
                 }
             }
@@ -58,31 +101,40 @@ private struct UsagePopoverView: View {
                 .padding(.vertical, 10)
 
             Label(
-                model.subscriptions.contains(where: { $0.hasAvailableSnapshot })
-                    ? "Dati osservati da Hermes"
-                    : "In attesa dei dati di Hermes",
+                model.availability.label,
                 systemImage: "clock.arrow.circlepath"
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if let updatedAt = model.updatedAt {
+                Text("Aggiornato \(updatedAt.date, style: .relative)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(16)
         .frame(width: 380)
-        .task {
-            accountingBySubscription = LocalAccountingService(
-                source: HermesAccountingReader()
-            ).readGroupedBySubscription()
-        }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("AI Usage")
-                .font(.title3.weight(.semibold))
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("AI Usage")
+                    .font(.title3.weight(.semibold))
 
-            Text("3 abbonamenti")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("3 abbonamenti")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Aggiorna", systemImage: "arrow.clockwise") {
+                Task { await model.refresh() }
+            }
+            .labelStyle(.iconOnly)
+            .accessibilityLabel("Aggiorna dati Hermes")
         }
     }
 }
@@ -90,6 +142,7 @@ private struct UsagePopoverView: View {
 private struct SubscriptionCard: View {
     let subscription: SubscriptionQuota
     let accounting: [LocalAccounting]
+    let accountingAvailability: AccountingAvailability
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -117,6 +170,13 @@ private struct SubscriptionCard: View {
 
             if !accounting.isEmpty {
                 AccountingSection(accounting: accounting)
+            } else if case let .unavailable(reason) = accountingAvailability {
+                Text("Contabilità locale non disponibile")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(reason)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(12)
@@ -157,6 +217,10 @@ private struct SubscriptionCard: View {
             Text(freshnessLabel(snapshot.freshness))
                 .font(.caption2)
                 .foregroundStyle(snapshot.freshness == .stale ? Color.orange : Color.gray)
+
+            Text("Snapshot acquisito \(snapshot.capturedAt.date, style: .relative)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -249,6 +313,12 @@ private struct AccountingDetail: View {
     }
 }
 
+private enum AccountingAvailability: Equatable {
+    case waiting
+    case available
+    case unavailable(String)
+}
+
 private extension Subscription {
     var displayName: String {
         switch self {
@@ -269,6 +339,21 @@ private extension Subscription {
             return "chevron.left.forwardslash.chevron.right"
         case .chatGPT:
             return "bubble.left.and.bubble.right.fill"
+        }
+    }
+}
+
+private extension LocalAccountingReadError {
+    var label: String {
+        switch self {
+        case .sourceMissing:
+            return "Hermes non ha ancora prodotto uno snapshot accounting."
+        case .sourceUnreadable:
+            return "La sorgente accounting Hermes non è leggibile."
+        case .malformedData:
+            return "Lo snapshot accounting Hermes non è valido."
+        case .unsupportedVersion:
+            return "Versione accounting non supportata."
         }
     }
 }
@@ -300,6 +385,19 @@ private extension SubscriptionQuota {
             return .green
         case .unavailable:
             return .secondary
+        }
+    }
+}
+
+private extension RefreshAvailability {
+    var label: String {
+        switch self {
+        case .live:
+            return "Dati osservati da Hermes"
+        case .offline:
+            return "Hermes offline · ultimo snapshot mantenuto"
+        case .waiting:
+            return "In attesa dei dati di Hermes"
         }
     }
 }

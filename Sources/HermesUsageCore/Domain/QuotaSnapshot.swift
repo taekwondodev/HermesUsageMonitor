@@ -37,6 +37,16 @@ public struct QuotaSnapshot: Equatable, Sendable {
         self.windows = windows
         self.source = source
     }
+
+    public func withFreshness(_ freshness: QuotaFreshness) -> QuotaSnapshot {
+        (try? QuotaSnapshot(
+            subscription: subscription,
+            capturedAt: capturedAt,
+            freshness: freshness,
+            windows: windows,
+            source: source
+        )) ?? self
+    }
 }
 
 public enum QuotaUnavailableReason: Equatable, Sendable {

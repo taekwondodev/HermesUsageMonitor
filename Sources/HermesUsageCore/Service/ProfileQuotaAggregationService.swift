@@ -1,7 +1,7 @@
 import Foundation
 
 protocol ProfileQuotaSource: Sendable {
-    func read() -> [ProfileQuotaObservation]
+    func read() async -> [ProfileQuotaObservation]
 }
 
 public protocol ProfileQuotaAggregationObserver: Sendable {
@@ -33,8 +33,8 @@ public struct ProfileQuotaAggregationService: Sendable {
         self.observer = observer
     }
 
-    public func read() -> [SubscriptionQuota] {
-        let result = aggregate(source.read())
+    public func read() async -> [SubscriptionQuota] {
+        let result = aggregate(await source.read())
         observer.record(result)
         return result
     }
