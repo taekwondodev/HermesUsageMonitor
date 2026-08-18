@@ -83,7 +83,7 @@ public struct HermesStateDBAccountingReader: LocalAccountingSource, Sendable {
         let process = Process()
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
         process.arguments = ["-readonly", "-json", databaseURL.path, sql]
 

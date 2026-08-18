@@ -3,17 +3,20 @@ import Foundation
 struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
     private let hermesHome: URL
     private let executable: URL?
+    private let fixtureOutput: Data?
 
     init(
         hermesHome: URL,
-        executable: URL? = nil
+        executable: URL? = nil,
+        fixtureOutput: Data? = nil
     ) {
         self.hermesHome = hermesHome
         self.executable = executable
+        self.fixtureOutput = fixtureOutput
     }
 
     func read() async -> [ProfileQuotaObservation] {
-        guard let output = runCommand(),
+        guard let output = fixtureOutput ?? runCommand(),
               let payload = try? decode(output) else {
             return []
         }
@@ -101,7 +104,7 @@ private extension HermesUsageCommandReader {
         let process = Process()
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
         if let executable = executable ?? discoverHermesExecutable() {
             process.executableURL = executable
