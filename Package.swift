@@ -22,7 +22,8 @@ let package = Package(
         ),
         .executableTarget(
             name: "HermesUsageMonitorApp",
-            dependencies: ["HermesUsageCore"]
+            dependencies: ["HermesUsageCore"],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "HermesUsageCoreTests",

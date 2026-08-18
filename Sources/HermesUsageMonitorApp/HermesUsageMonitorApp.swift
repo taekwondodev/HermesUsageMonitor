@@ -16,7 +16,7 @@ struct HermesUsageMonitorApp: App {
         MenuBarExtra {
             UsagePopoverView(model: model)
         } label: {
-            Image(systemName: "sparkles")
+            HermesMark()
                 .accessibilityLabel("AI usage")
         }
         .menuBarExtraStyle(.window)
@@ -153,9 +153,7 @@ private struct SubscriptionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: subscription.subscription.symbol)
-                    .frame(width: 20)
-                    .foregroundStyle(.tint)
+                SubscriptionIdentityIcon(subscription: subscription.subscription)
 
                 Text(subscription.subscription.displayName)
                     .font(.headline)
@@ -283,6 +281,48 @@ private struct AccountingSection: View {
         }
         .padding(8)
         .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct HermesMark: View {
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Circle()
+                .strokeBorder(.primary, lineWidth: 1.2)
+
+            Text("H")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+
+            Image(systemName: "sparkle")
+                .font(.system(size: 6, weight: .bold))
+                .offset(x: 2, y: -2)
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SubscriptionIdentityIcon: View {
+    let subscription: Subscription
+
+    var body: some View {
+        switch subscription {
+        case .nousPortal:
+            icon("nous-portal")
+        case .opencodeGo:
+            icon("opencode-go")
+        case .chatGPT:
+            icon("chatgpt")
+        }
+    }
+
+    private func icon(_ name: String) -> some View {
+        Image(name, bundle: .module)
+        .resizable()
+        .scaledToFit()
+        .frame(width: 22, height: 22)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .accessibilityHidden(true)
     }
 }
 
