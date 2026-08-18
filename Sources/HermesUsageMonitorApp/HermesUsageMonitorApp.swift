@@ -726,6 +726,12 @@ private extension QuotaUnavailableReason {
             return "Lo snapshot Hermes non è valido."
         case .unsupportedVersion:
             return "Versione dello snapshot non supportata."
+        case .commandMissing:
+            return "Il comando usage non è disponibile nella versione Hermes installata."
+        case .authenticationFailed:
+            return "Hermes non ha potuto autenticare la sorgente usage."
+        case .endpointUnavailable:
+            return "L'endpoint usage del provider non è raggiungibile."
         }
     }
 }

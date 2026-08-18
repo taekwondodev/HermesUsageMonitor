@@ -56,6 +56,9 @@ public enum QuotaUnavailableReason: Equatable, Sendable {
     case sourceUnreadable
     case malformedSnapshot
     case unsupportedVersion
+    case commandMissing
+    case authenticationFailed
+    case endpointUnavailable
 }
 
 public enum QuotaReadResult: Equatable, Sendable {

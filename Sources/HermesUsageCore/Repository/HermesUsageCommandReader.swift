@@ -16,9 +16,26 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
     }
 
     func read() async -> [ProfileQuotaObservation] {
-        guard let output = fixtureOutput ?? runCommand(),
-              let payload = try? decode(output) else {
-            return []
+        let payload: Payload
+        if let fixtureOutput {
+            guard let decoded = try? decode(fixtureOutput) else {
+                return unavailableObservations(.malformedSnapshot)
+            }
+            payload = decoded
+        } else {
+            switch runCommand() {
+            case let .success(output):
+                guard let decoded = try? decode(output) else {
+                    return unavailableObservations(.malformedSnapshot)
+                }
+                payload = decoded
+            case let .failure(reason):
+                return unavailableObservations(reason.quotaReason)
+            }
+        }
+
+        if let version = payload.version, version != 1 {
+            return unavailableObservations(.unsupportedVersion)
         }
 
         let profile = try? HermesProfileID(value: "hermes-usage-command")
@@ -32,7 +49,7 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
 
             let result: QuotaReadResult
             if provider.status != "available" {
-                result = .unavailable(.sourceUnreadable)
+                result = .unavailable(provider.unavailableReason)
             } else {
                 let windows = (provider.windows ?? []).compactMap { window -> QuotaWindow? in
                     guard let usedPercent = window.usedPercent else { return nil }
@@ -73,10 +90,39 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
             )
         }
     }
+
+    private func unavailableObservations(_ reason: QuotaUnavailableReason) -> [ProfileQuotaObservation] {
+        guard let profile = try? HermesProfileID(value: "hermes-usage-command") else { return [] }
+        let observedAt = QuotaTimestamp(date: Date())
+        return Subscription.allCases.compactMap {
+            try? ProfileQuotaObservation(
+                profile: profile,
+                subscription: $0,
+                observedAt: observedAt,
+                result: .unavailable(reason)
+            )
+        }
+    }
 }
 
 private extension HermesUsageCommandReader {
+    enum CommandFailure: Error {
+        case commandMissing
+        case authenticationFailed
+        case endpointUnavailable
+
+        var quotaReason: QuotaUnavailableReason {
+            switch self {
+            case .commandMissing: return .commandMissing
+            case .authenticationFailed: return .authenticationFailed
+            case .endpointUnavailable: return .endpointUnavailable
+            }
+        }
+    }
+
+
     struct Payload: Decodable {
+        let version: Int?
         let providers: [String: Provider]
     }
 
@@ -85,6 +131,18 @@ private extension HermesUsageCommandReader {
         let subscription: String
         let capturedAt: Date?
         let windows: [Window]?
+        let reason: String?
+
+        var unavailableReason: QuotaUnavailableReason {
+            let normalized = (reason ?? "").lowercased()
+            if normalized.contains("auth") || normalized.contains("api key") || normalized.contains("401") || normalized.contains("403") {
+                return .authenticationFailed
+            }
+            if normalized.contains("endpoint") || normalized.contains("network") || normalized.contains("timeout") {
+                return .endpointUnavailable
+            }
+            return .sourceUnreadable
+        }
     }
 
     struct Window: Decodable {
@@ -100,13 +158,15 @@ private extension HermesUsageCommandReader {
         return try decoder.decode(Payload.self, from: data)
     }
 
-    func runCommand() -> Data? {
+    func runCommand() -> Result<Data, CommandFailure> {
         let process = Process()
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
 
-        if let executable = executable ?? discoverHermesExecutable() {
+        let resolvedExecutable = executable ?? discoverHermesExecutable()
+        let commandMissing = resolvedExecutable == nil
+        if let executable = resolvedExecutable {
             process.executableURL = executable
             process.arguments = ["usage", "--json", "--provider", "nous", "--provider", "openai-codex", "--provider", "opencode-go"]
         } else {
@@ -123,15 +183,17 @@ private extension HermesUsageCommandReader {
             while process.isRunning {
                 guard Date() < deadline else {
                     process.terminate()
-                    return nil
+                    return .failure(.endpointUnavailable)
                 }
                 Thread.sleep(forTimeInterval: 0.05)
             }
         } catch {
-            return nil
+            return .failure(.commandMissing)
         }
-        guard process.terminationStatus == 0 else { return nil }
-        return output.fileHandleForReading.readDataToEndOfFile()
+        guard process.terminationStatus == 0 else {
+            return .failure(commandMissing ? .commandMissing : .endpointUnavailable)
+        }
+        return .success(output.fileHandleForReading.readDataToEndOfFile())
     }
 
     func discoverHermesExecutable() -> URL? {

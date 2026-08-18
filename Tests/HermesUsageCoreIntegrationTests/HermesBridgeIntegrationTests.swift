@@ -18,7 +18,8 @@ struct HermesBridgeIntegrationTests {
                 },
                 "openai-codex": {
                   "status": "unavailable",
-                  "subscription": "chatgpt"
+                  "subscription": "chatgpt",
+                  "reason": "authentication failed (401)"
                 }
               }
             }
@@ -42,7 +43,34 @@ struct HermesBridgeIntegrationTests {
         }
         #expect(snapshot.windows[0].kind == .monthly)
         #expect(snapshot.windows[0].usedPercent == 83)
-        #expect(chatGPT.result == .unavailable(.sourceUnreadable))
+        #expect(chatGPT.result == .unavailable(.authenticationFailed))
+    }
+
+    @Test("marks an unsupported usage contract explicitly")
+    func marksUnsupportedUsageVersion() async throws {
+        let fixture = Data(
+            """
+            {"version": 99, "providers": {}}
+            """.utf8
+        )
+        let observations = await HermesUsageCommandReader(
+            hermesHome: FileManager.default.temporaryDirectory,
+            fixtureOutput: fixture
+        ).read()
+
+        #expect(observations.count == Subscription.allCases.count)
+        #expect(observations.allSatisfy { $0.result == .unavailable(.unsupportedVersion) })
+    }
+
+    @Test("marks malformed usage JSON without hiding providers")
+    func marksMalformedUsagePayload() async throws {
+        let observations = await HermesUsageCommandReader(
+            hermesHome: FileManager.default.temporaryDirectory,
+            fixtureOutput: Data("not-json".utf8)
+        ).read()
+
+        #expect(observations.count == Subscription.allCases.count)
+        #expect(observations.allSatisfy { $0.result == .unavailable(.malformedSnapshot) })
     }
 
     @Test("reads the real state.db accounting schema read-only")
