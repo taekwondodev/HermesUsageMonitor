@@ -39,3 +39,9 @@ To build, ad-hoc sign, install, and launch the personal menu bar app:
 ```
 
 The script installs `HermesUsageMonitor.app` in `~/Applications`. If an existing instance is running, it asks for confirmation before replacing it. `swift run HermesUsageMonitor` remains a development mode; because it is not a `.app` bundle, UserNotifications are intentionally disabled in that mode.
+
+To verify an already-installed bundle without rebuilding it:
+
+```bash
+./scripts/verify-installed-app.sh
+```

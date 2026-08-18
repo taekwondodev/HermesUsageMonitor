@@ -78,7 +78,20 @@ if ! mv "${STAGE_APP}" "${TARGET_APP}"; then
     printf 'Installation failed; previous app restored when available.\n' >&2
     exit 1
 fi
-rm -rf "${BACKUP}" 2>/dev/null || true
-
 printf 'Installed: %s\n' "${TARGET_APP}"
 open "${TARGET_APP}"
+for _ in {1..50}; do
+    if pgrep -x "${APP_NAME}" >/dev/null 2>&1; then
+        rm -rf "${BACKUP}" 2>/dev/null || true
+        exit 0
+    fi
+    sleep 0.1
+done
+if [[ -e "${TARGET_APP}" ]]; then
+    rm -rf "${TARGET_APP}"
+fi
+if [[ -e "${BACKUP}" ]]; then
+    mv "${BACKUP}" "${TARGET_APP}"
+fi
+printf 'The installed app did not remain running after launch; previous app restored when available.\n' >&2
+exit 1
