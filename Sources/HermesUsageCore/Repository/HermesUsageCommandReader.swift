@@ -197,13 +197,17 @@ private extension HermesUsageCommandReader {
     }
 
     func discoverHermesExecutable() -> URL? {
-        let candidates = [
+        let configuredCandidates = [
             hermesHome.appendingPathComponent("hermes-agent/venv/bin/hermes"),
             hermesHome
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("hermes-agent/venv/bin/hermes")
         ]
+        let pathCandidates = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map { URL(fileURLWithPath: String($0)).appendingPathComponent("hermes") }
+        let candidates = configuredCandidates + pathCandidates
         return candidates.first {
             FileManager.default.isExecutableFile(atPath: $0.path)
         }
