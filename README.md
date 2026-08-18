@@ -14,6 +14,12 @@ This repository contains the initial SwiftUI menu bar scaffold:
 
 The app is intentionally read-only. Hermes integration, quota snapshots, profile aggregation, and reset notifications will be implemented from the approved product specification.
 
+## Hermes quota snapshot contract
+
+The first repository adapter reads a read-only snapshot at `$HERMES_HOME/usage/quota-snapshot.json`, or `~/.hermes/usage/quota-snapshot.json` when `HERMES_HOME` is unset. Hermes may write the snapshot; this app never creates or modifies it.
+
+The current contract uses `version: 1`, an ISO-8601 `capturedAt`, a `freshness` value (`live`, `persisted`, or `stale`), one commercial subscription, a source identifier, and quota windows with `rolling-5h`, `daily`, `weekly`, or `monthly` kinds. Percentages must be finite values from 0 through 100. Missing, malformed, unsupported, or unreadable snapshots are reported as unavailable rather than estimated.
+
 ## Open in Xcode
 
 Open `Package.swift` in Xcode 26.6 and run the `HermesUsageMonitor` executable scheme.

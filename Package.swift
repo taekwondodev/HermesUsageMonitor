@@ -10,11 +10,27 @@ let package = Package(
         .executable(
             name: "HermesUsageMonitor",
             targets: ["HermesUsageMonitorApp"]
+        ),
+        .library(
+            name: "HermesUsageCore",
+            targets: ["HermesUsageCore"]
         )
     ],
     targets: [
+        .target(
+            name: "HermesUsageCore"
+        ),
         .executableTarget(
-            name: "HermesUsageMonitorApp"
+            name: "HermesUsageMonitorApp",
+            dependencies: ["HermesUsageCore"]
+        ),
+        .testTarget(
+            name: "HermesUsageCoreTests",
+            dependencies: ["HermesUsageCore"]
+        ),
+        .testTarget(
+            name: "HermesUsageCoreIntegrationTests",
+            dependencies: ["HermesUsageCore"]
         )
     ]
 )
