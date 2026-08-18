@@ -85,9 +85,11 @@ private final class UsageViewModel {
 
 private struct UsagePopoverView: View {
     let model: UsageViewModel
+    @State private var expandedSubscriptions: Set<Subscription> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 0) {
             header
 
             Divider()
@@ -98,7 +100,16 @@ private struct UsagePopoverView: View {
                     SubscriptionCard(
                         subscription: subscription,
                         accounting: model.accountingBySubscription[subscription.subscription] ?? [],
-                        accountingAvailability: model.accountingAvailability
+                        accountingAvailability: model.accountingAvailability,
+                        isAccountingExpanded: Binding(
+                            get: { expandedSubscriptions.contains(subscription.subscription) },
+                            set: { expanded in
+                                setAccounting(
+                                    for: subscription.subscription,
+                                    expanded: expanded
+                                )
+                            }
+                        )
                     )
                 }
             }
@@ -118,9 +129,20 @@ private struct UsagePopoverView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(16)
         .frame(width: 380)
+        .frame(maxHeight: 560)
+    }
+
+    private func setAccounting(for subscription: Subscription, expanded: Bool) {
+        if expanded {
+            expandedSubscriptions.insert(subscription)
+        } else {
+            expandedSubscriptions.remove(subscription)
+        }
     }
 
     private var header: some View {
@@ -149,6 +171,7 @@ private struct SubscriptionCard: View {
     let subscription: SubscriptionQuota
     let accounting: [LocalAccounting]
     let accountingAvailability: AccountingAvailability
+    @Binding var isAccountingExpanded: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -172,15 +195,21 @@ private struct SubscriptionCard: View {
                 unavailableContent(reason)
             }
 
-            if !accounting.isEmpty {
-                AccountingSection(accounting: accounting)
-            } else if case let .unavailable(reason) = accountingAvailability {
-                Text("Contabilità locale non disponibile")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(reason)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            if accountingAvailability != .waiting {
+                DisclosureGroup(
+                    isExpanded: $isAccountingExpanded
+                ) {
+                    AccountingSection(
+                        accounting: accounting,
+                        accountingAvailability: accountingAvailability
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Label("Uso osservato da Hermes", systemImage: "chart.bar.doc.horizontal")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(12)
@@ -268,15 +297,21 @@ private struct SubscriptionCard: View {
 
 private struct AccountingSection: View {
     let accounting: [LocalAccounting]
+    let accountingAvailability: AccountingAvailability
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Label("Uso osservato da Hermes", systemImage: "chart.bar.doc.horizontal")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ForEach(Array(accounting.enumerated()), id: \.offset) { _, item in
-                AccountingDetail(item: item)
+            if !accounting.isEmpty {
+                ForEach(Array(accounting.enumerated()), id: \.offset) { _, item in
+                    AccountingDetail(item: item)
+                }
+            } else if case let .unavailable(reason) = accountingAvailability {
+                Text("Contabilità locale non disponibile")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(reason)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(8)
