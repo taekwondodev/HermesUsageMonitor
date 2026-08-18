@@ -41,6 +41,16 @@ def digest(path: pathlib.Path) -> str | None:
     return hasher.hexdigest()
 
 
+def credential_files() -> list[pathlib.Path]:
+    candidates = [HERMES_ROOT / ".env", HERMES_ROOT / "auth.json"]
+    profiles = HERMES_ROOT / "profiles"
+    if profiles.is_dir():
+        for profile in profiles.iterdir():
+            if profile.is_dir():
+                candidates.extend([profile / ".env", profile / "auth.json"])
+    return sorted({path for path in candidates if path.is_file()})
+
+
 def main() -> int:
     report: dict[str, Any] = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -51,6 +61,7 @@ def main() -> int:
     }
     state_db = HERMES_ROOT / "state.db"
     before = digest(state_db)
+    credential_before = {path: digest(path) for path in credential_files()}
     executable = hermes_executable()
     if executable is None:
         report["hermes"] = {"status": "unavailable", "reason": "commandMissing"}
@@ -100,12 +111,18 @@ def main() -> int:
     after = digest(state_db)
     state_unchanged = before == after
     report["stateDb"] = {"unchanged": state_unchanged, "present": after is not None}
+    credential_after = {path: digest(path) for path in credential_files()}
+    credentials_unchanged = credential_before == credential_after
+    report["credentials"] = {
+        "unchanged": credentials_unchanged,
+        "filesChecked": len(set(credential_before) | set(credential_after)),
+    }
 
     usage_status = report.get("usage", {}).get("status") if isinstance(report.get("usage"), dict) else "unavailable"
     app_ok = test_code == 0 and build_code == 0
-    if executable is not None and usage_status == "available" and app_ok and state_unchanged:
+    if executable is not None and usage_status == "available" and app_ok and state_unchanged and credentials_unchanged:
         report["status"] = "ok"
-    elif app_ok and state_unchanged:
+    elif app_ok and state_unchanged and credentials_unchanged:
         report["status"] = "partial-degradation"
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
