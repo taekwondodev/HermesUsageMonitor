@@ -17,12 +17,20 @@ struct HermesUsageMonitorApp: App {
         let model = UsageViewModel()
         _model = State(initialValue: model)
         Task { await NotificationAuthorizationCoordinator.requestOnLaunchIfNeeded() }
-        Task { await model.startAutomaticRefresh() }
+        model.startAutomaticRefresh()
     }
 
     var body: some Scene {
         MenuBarExtra {
-            UsagePopoverView(model: model)
+            UsagePopoverView(
+                model: model,
+                onTerminate: {
+                    AppShutdownCoordinator(
+                        stopRefresh: model.stopAutomaticRefresh,
+                        terminate: { NSApplication.shared.terminate(nil) }
+                    ).shutdown()
+                }
+            )
         } label: {
             HermesMark()
                 .accessibilityLabel("AI usage")
@@ -43,6 +51,7 @@ private final class UsageViewModel {
     private let service: ProfileQuotaRefreshService
     private let resetService: QuotaResetNotificationService
     private let accountingService: LocalAccountingService
+    private var automaticRefreshTask: Task<Void, Never>? = nil
 
     init() {
         let hermesHome = ProcessInfo.processInfo.environment["HERMES_HOME"]
@@ -78,21 +87,31 @@ private final class UsageViewModel {
         }
     }
 
-    func startAutomaticRefresh() async {
-        await refresh()
-        while !Task.isCancelled {
-            do {
-                try await Task.sleep(for: ProfileQuotaRefreshService.defaultInterval)
-            } catch {
-                return
-            }
+    func startAutomaticRefresh() {
+        guard automaticRefreshTask == nil else { return }
+        automaticRefreshTask = Task { [weak self] in
+            guard let self else { return }
             await refresh()
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: ProfileQuotaRefreshService.defaultInterval)
+                } catch {
+                    return
+                }
+                await refresh()
+            }
         }
+    }
+
+    func stopAutomaticRefresh() {
+        automaticRefreshTask?.cancel()
+        automaticRefreshTask = nil
     }
 }
 
 private struct UsagePopoverView: View {
     let model: UsageViewModel
+    let onTerminate: () -> Void
     @State private var expandedSubscriptions: Set<Subscription> = []
     @State private var orderedSubscriptions = SubscriptionOrderStore.load()
     @State private var draggedSubscription: Subscription?
@@ -247,6 +266,12 @@ private struct UsagePopoverView: View {
             }
             .labelStyle(.iconOnly)
             .accessibilityLabel("Aggiorna dati Hermes")
+
+            Button("Chiudi HermesUsageMonitor", systemImage: "power", action: onTerminate)
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.primary)
+                .accessibilityLabel("Chiudi HermesUsageMonitor")
+                .help("Chiudi HermesUsageMonitor")
         }
     }
 }

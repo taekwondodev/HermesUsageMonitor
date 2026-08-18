@@ -2,6 +2,17 @@ import AppKit
 import Darwin
 import UserNotifications
 
+@MainActor
+struct AppShutdownCoordinator {
+    let stopRefresh: @MainActor () -> Void
+    let terminate: @MainActor () -> Void
+
+    func shutdown() {
+        stopRefresh()
+        terminate()
+    }
+}
+
 struct NotificationAuthorizationCoordinator: Sendable {
     static func requestOnLaunchIfNeeded() async {
         guard MacOSNotificationEnvironment.canUseUserNotifications else {

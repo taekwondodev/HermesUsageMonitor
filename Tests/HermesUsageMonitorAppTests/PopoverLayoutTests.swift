@@ -109,4 +109,16 @@ struct HermesUsageMonitorAppTests {
     func notificationAuthorizationDoesNotCrashOutsideAppBundle() async {
         await NotificationAuthorizationCoordinator.requestOnLaunchIfNeeded()
     }
+
+    @Test("shutdown cancels refresh before terminating the app")
+    @MainActor
+    func shutdownOrder() {
+        var events: [String] = []
+        AppShutdownCoordinator(
+            stopRefresh: { events.append("stop") },
+            terminate: { events.append("terminate") }
+        ).shutdown()
+
+        #expect(events == ["stop", "terminate"])
+    }
 }
