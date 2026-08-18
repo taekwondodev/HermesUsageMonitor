@@ -1,6 +1,7 @@
 import HermesUsageCore
 import Observation
 import AppKit
+import Darwin
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -9,8 +10,13 @@ struct HermesUsageMonitorApp: App {
     @State private var model = UsageViewModel()
 
     init() {
+        guard SingleInstanceGuard.acquire() else {
+            exit(EXIT_SUCCESS)
+        }
+
         let model = UsageViewModel()
         _model = State(initialValue: model)
+        Task { await NotificationAuthorizationCoordinator.requestOnLaunchIfNeeded() }
         Task { await model.startAutomaticRefresh() }
     }
 

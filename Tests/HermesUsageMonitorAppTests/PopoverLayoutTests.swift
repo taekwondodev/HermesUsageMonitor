@@ -97,4 +97,16 @@ struct HermesUsageMonitorAppTests {
 
         await MacOSQuotaResetNotifier().notify(notification)
     }
+
+    @Test("single instance guard accepts only the current process")
+    func singleInstanceGuard() {
+        #expect(SingleInstanceGuard.canAcquire(currentProcessID: 10, existingProcessIDs: [10]))
+        #expect(!SingleInstanceGuard.canAcquire(currentProcessID: 10, existingProcessIDs: [10, 20]))
+        #expect(SingleInstanceGuard.canAcquire(currentProcessID: 10, existingProcessIDs: []))
+    }
+
+    @Test("notification authorization is a no-op outside an app bundle")
+    func notificationAuthorizationDoesNotCrashOutsideAppBundle() async {
+        await NotificationAuthorizationCoordinator.requestOnLaunchIfNeeded()
+    }
 }
