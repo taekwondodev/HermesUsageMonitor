@@ -41,9 +41,14 @@ private final class UsageViewModel {
             .map(URL.init(fileURLWithPath:))
             ?? FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".hermes", isDirectory: true)
+        let hermesRoot = hermesHome.deletingLastPathComponent().lastPathComponent == "profiles"
+            ? hermesHome
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            : hermesHome
         service = ProfileQuotaRefreshService(hermesHome: hermesHome)
         resetService = QuotaResetNotificationService(notifier: MacOSQuotaResetNotifier())
-        accountingService = LocalAccountingService(source: HermesStateDBAccountingReader(hermesHome: hermesHome))
+        accountingService = LocalAccountingService(source: HermesStateDBAccountingReader(hermesHome: hermesRoot))
         subscriptions = Subscription.allCases.map {
             SubscriptionQuota(subscription: $0, result: .unavailable(.sourceMissing))
         }
