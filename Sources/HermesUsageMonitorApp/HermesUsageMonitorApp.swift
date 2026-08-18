@@ -33,6 +33,7 @@ private final class UsageViewModel {
     var accountingAvailability: AccountingAvailability = .waiting
 
     private let service: ProfileQuotaRefreshService
+    private let resetService: QuotaResetNotificationService
     private let accountingService: LocalAccountingService
 
     init() {
@@ -41,6 +42,7 @@ private final class UsageViewModel {
             ?? FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".hermes", isDirectory: true)
         service = ProfileQuotaRefreshService(hermesHome: hermesHome)
+        resetService = QuotaResetNotificationService(notifier: MacOSQuotaResetNotifier())
         accountingService = LocalAccountingService(source: HermesAccountingReader())
         subscriptions = Subscription.allCases.map {
             SubscriptionQuota(subscription: $0, result: .unavailable(.sourceMissing))
@@ -52,6 +54,7 @@ private final class UsageViewModel {
         subscriptions = state.subscriptions
         availability = state.availability
         updatedAt = state.updatedAt
+        await resetService.process(state)
         do {
             accountingBySubscription = try accountingService.readGroupedBySubscription()
             accountingAvailability = .available
