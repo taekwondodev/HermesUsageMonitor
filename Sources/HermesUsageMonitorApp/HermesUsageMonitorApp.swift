@@ -134,7 +134,7 @@ private struct UsagePopoverView: View {
         }
         .padding(16)
         .frame(width: 380)
-        .frame(minHeight: 420, idealHeight: 420, maxHeight: 560)
+        .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
     }
 
     private func setAccounting(for subscription: Subscription, expanded: Bool) {
@@ -205,7 +205,7 @@ private struct SubscriptionCard: View {
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    Label("Uso osservato da Hermes", systemImage: "chart.bar.doc.horizontal")
+                    Label("Uso osservato da Hermes", systemImage: "umbrella.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -343,22 +343,48 @@ private struct SubscriptionIdentityIcon: View {
     var body: some View {
         switch subscription {
         case .nousPortal:
-            icon("nous-portal")
+            icon(ProviderAssetCatalog.nousPortal)
         case .opencodeGo:
-            icon("opencode-go")
+            icon(ProviderAssetCatalog.opencodeGo)
         case .chatGPT:
-            icon("chatgpt")
+            icon(ProviderAssetCatalog.chatGPT)
         }
     }
 
     private func icon(_ name: String) -> some View {
-        Image(name, bundle: .module)
-        .resizable()
-        .scaledToFit()
-        .frame(width: 22, height: 22)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        ZStack {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(.background)
+            Image(name, bundle: ProviderAssetCatalog.bundle)
+                .resizable()
+                .renderingMode(.original)
+                .interpolation(.high)
+                .scaledToFit()
+                .padding(1)
+        }
+        .frame(width: 26, height: 26)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .overlay {
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(.quaternary, lineWidth: 0.5)
+        }
         .accessibilityHidden(true)
     }
+}
+
+enum ProviderAssetCatalog {
+    static let bundle = Bundle.module
+    static let nousPortal = "nous-portal"
+    static let opencodeGo = "opencode-go"
+    static let chatGPT = "chatgpt"
+
+    static let all = [nousPortal, opencodeGo, chatGPT]
+}
+
+enum PopoverLayout {
+    static let minimumHeight: CGFloat = 500
+    static let idealHeight: CGFloat = 500
+    static let maximumHeight: CGFloat = 640
 }
 
 private struct AccountingDetail: View {

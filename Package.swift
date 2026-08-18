@@ -32,6 +32,10 @@ let package = Package(
         .testTarget(
             name: "HermesUsageCoreIntegrationTests",
             dependencies: ["HermesUsageCore"]
+        ),
+        .testTarget(
+            name: "HermesUsageMonitorAppTests",
+            dependencies: ["HermesUsageMonitorApp"]
         )
     ]
 )
