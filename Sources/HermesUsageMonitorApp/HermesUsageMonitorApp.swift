@@ -134,7 +134,7 @@ private struct UsagePopoverView: View {
         }
         .padding(16)
         .frame(width: 380)
-        .frame(maxHeight: 560)
+        .frame(minHeight: 420, idealHeight: 420, maxHeight: 560)
     }
 
     private func setAccounting(for subscription: Subscription, expanded: Bool) {
