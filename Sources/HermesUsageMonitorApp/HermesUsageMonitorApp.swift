@@ -1,5 +1,6 @@
 import HermesUsageCore
 import Observation
+import AppKit
 import SwiftUI
 
 @main
@@ -355,12 +356,19 @@ private struct SubscriptionIdentityIcon: View {
         ZStack {
             RoundedRectangle(cornerRadius: 5)
                 .fill(.background)
-            Image(name, bundle: ProviderAssetCatalog.bundle)
-                .resizable()
-                .renderingMode(.original)
-                .interpolation(.high)
-                .scaledToFit()
-                .padding(1)
+            if let image = ProviderAssetCatalog.image(named: name) {
+                Image(nsImage: image)
+                    .resizable()
+                    .renderingMode(.original)
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .padding(1)
+            } else {
+                Image(systemName: "questionmark.square.dashed")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Icona provider non disponibile")
+            }
         }
         .frame(width: 26, height: 26)
         .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -379,6 +387,17 @@ enum ProviderAssetCatalog {
     static let chatGPT = "chatgpt"
 
     static let all = [nousPortal, opencodeGo, chatGPT]
+
+    static func image(named name: String) -> NSImage? {
+        for ext in ["png", "jpg"] {
+            guard let url = bundle.url(forResource: name, withExtension: ext),
+                  let image = NSImage(contentsOf: url) else {
+                continue
+            }
+            return image
+        }
+        return nil
+    }
 }
 
 enum PopoverLayout {
