@@ -135,12 +135,16 @@ private extension HermesUsageCommandReader {
     }
 
     func discoverHermesExecutable() -> URL? {
-        let profileRoot = hermesHome
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let candidate = profileRoot
-            .appendingPathComponent("hermes-agent/venv/bin/hermes")
-        return FileManager.default.isExecutableFile(atPath: candidate.path) ? candidate : nil
+        let candidates = [
+            hermesHome.appendingPathComponent("hermes-agent/venv/bin/hermes"),
+            hermesHome
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("hermes-agent/venv/bin/hermes")
+        ]
+        return candidates.first {
+            FileManager.default.isExecutableFile(atPath: $0.path)
+        }
     }
 
     var hermesCommandHome: URL {
