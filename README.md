@@ -45,3 +45,11 @@ To verify an already-installed bundle without rebuilding it:
 ```bash
 ./scripts/verify-installed-app.sh
 ```
+
+To verify Hermes compatibility after an update and save a non-sensitive report:
+
+```bash
+./scripts/verify-hermes-compatibility.py
+```
+
+Reports are written under `~/.hermes/update-safe/`.
