@@ -84,4 +84,17 @@ struct HermesUsageMonitorAppTests {
     func notificationAdapterRequiresAppBundle() {
         #expect(MacOSNotificationEnvironment.canUseUserNotifications == false)
     }
+
+    @Test("reset notification is a no-op for swift run executables")
+    func resetNotificationDoesNotCrashOutsideAppBundle() async {
+        let notification = QuotaResetNotification(events: [
+            QuotaResetEvent(
+                subscription: .chatGPT,
+                windowKind: .rollingFiveHours,
+                windowLabel: "Session"
+            )
+        ])
+
+        await MacOSQuotaResetNotifier().notify(notification)
+    }
 }
