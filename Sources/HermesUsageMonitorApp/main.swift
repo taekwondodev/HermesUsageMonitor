@@ -36,6 +36,7 @@ private final class UsageViewModel {
 
 private struct UsagePopoverView: View {
     let model: UsageViewModel
+    @State private var accountingBySubscription: [Subscription: [LocalAccounting]] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -46,7 +47,10 @@ private struct UsagePopoverView: View {
 
             VStack(spacing: 10) {
                 ForEach(model.subscriptions) { subscription in
-                    SubscriptionCard(subscription: subscription)
+                    SubscriptionCard(
+                        subscription: subscription,
+                        accounting: accountingBySubscription[subscription.subscription] ?? []
+                    )
                 }
             }
 
@@ -64,6 +68,11 @@ private struct UsagePopoverView: View {
         }
         .padding(16)
         .frame(width: 380)
+        .task {
+            accountingBySubscription = LocalAccountingService(
+                source: HermesAccountingReader()
+            ).readGroupedBySubscription()
+        }
     }
 
     private var header: some View {
@@ -80,6 +89,7 @@ private struct UsagePopoverView: View {
 
 private struct SubscriptionCard: View {
     let subscription: SubscriptionQuota
+    let accounting: [LocalAccounting]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -103,6 +113,10 @@ private struct SubscriptionCard: View {
                 snapshotContent(snapshot)
             case let .unavailable(reason):
                 unavailableContent(reason)
+            }
+
+            if !accounting.isEmpty {
+                AccountingSection(accounting: accounting)
             }
         }
         .padding(12)
@@ -180,6 +194,57 @@ private struct SubscriptionCard: View {
             return "Snapshot Hermes persistito"
         case .stale:
             return "Dato vecchio · non verificato"
+        }
+    }
+}
+
+private struct AccountingSection: View {
+    let accounting: [LocalAccounting]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label("Uso osservato da Hermes", systemImage: "chart.bar.doc.horizontal")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ForEach(Array(accounting.enumerated()), id: \.offset) { _, item in
+                AccountingDetail(item: item)
+            }
+        }
+        .padding(8)
+        .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct AccountingDetail: View {
+    let item: LocalAccounting
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let tokens = item.tokens {
+                HStack(spacing: 4) {
+                    if let input = tokens.input { Text("Input: \(input)") }
+                    if let output = tokens.output { Text("Output: \(output)") }
+                }
+                .font(.caption2)
+            }
+            if let requests = item.requests {
+                Text("Richieste: \(requests)")
+                    .font(.caption2)
+            }
+            if !item.models.isEmpty {
+                Text("Modelli: \(item.models.joined(separator: ", "))")
+                    .font(.caption2)
+            }
+            if let cost = item.cost {
+                Text("Costo: \(cost.amount.description) \(cost.currency)")
+                    .font(.caption2)
+            }
+            if let provider = item.provider {
+                Text(provider)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 }
