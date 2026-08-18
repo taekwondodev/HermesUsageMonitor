@@ -123,14 +123,15 @@ private struct UsagePopoverView: View {
                     }
                     .onDrop(
                         of: [.text],
-                        delegate: SubscriptionDropDelegate(
-                            target: subscription.subscription,
-                            items: $orderedSubscriptions,
-                            draggedItem: $draggedSubscription,
-                            dropTarget: $dropTarget,
-                            save: saveSubscriptionOrder
+                        isTargeted: Binding(
+                            get: { dropTarget == subscription.subscription },
+                            set: { targeted in
+                                dropTarget = targeted ? subscription.subscription : nil
+                            }
                         )
-                    )
+                    ) { _, _ in
+                        completeDrop(on: subscription.subscription)
+                    }
                     .overlay {
                         if dropTarget == subscription.subscription {
                             RoundedRectangle(cornerRadius: 10)
@@ -196,6 +197,30 @@ private struct UsagePopoverView: View {
 
     private func saveSubscriptionOrder() {
         SubscriptionOrderStore.save(orderedSubscriptions)
+    }
+
+    private func completeDrop(on target: Subscription) -> Bool {
+        guard let dragged = draggedSubscription,
+              dragged != target,
+              let draggedIndex = displaySubscriptions.firstIndex(where: { $0.subscription == dragged }),
+              let targetIndex = displaySubscriptions.firstIndex(where: { $0.subscription == target }) else {
+            draggedSubscription = nil
+            dropTarget = nil
+            return false
+        }
+
+        orderedSubscriptions = SubscriptionOrderStore.movedBefore(
+            orderedSubscriptions,
+            visibleItems: displaySubscriptions.map(\.subscription),
+            item: dragged,
+            target: target
+        )
+        if draggedIndex != targetIndex {
+            saveSubscriptionOrder()
+        }
+        draggedSubscription = nil
+        dropTarget = nil
+        return true
     }
 
     private var header: some View {
@@ -511,46 +536,21 @@ enum SubscriptionOrderStore {
         result.insert(item, at: destination > index ? targetIndex + 1 : targetIndex)
         return result
     }
-}
 
-private struct SubscriptionDropDelegate: DropDelegate {
-    let target: Subscription
-    @Binding var items: [Subscription]
-    @Binding var draggedItem: Subscription?
-    @Binding var dropTarget: Subscription?
-    let save: () -> Void
-
-    func dropEntered(info: DropInfo) {
-        dropTarget = target
-        guard let draggedItem,
-              draggedItem != target,
-              let fromIndex = items.firstIndex(of: draggedItem),
-              let targetIndex = items.firstIndex(of: target) else { return }
-
-        withAnimation(.snappy) {
-            items.move(
-                fromOffsets: IndexSet(integer: fromIndex),
-                toOffset: targetIndex > fromIndex ? targetIndex + 1 : targetIndex
-            )
-        }
-        save()
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggedItem = nil
-        dropTarget = nil
-        save()
-        return true
-    }
-
-    func dropExited(info: DropInfo) {
-        if dropTarget == target {
-            dropTarget = nil
-        }
+    static func movedBefore(
+        _ order: [Subscription],
+        visibleItems: [Subscription],
+        item: Subscription,
+        target: Subscription
+    ) -> [Subscription] {
+        guard item != target,
+              visibleItems.contains(item),
+              visibleItems.contains(target) else { return order }
+        var result = order
+        result.removeAll { $0 == item }
+        guard let targetIndex = result.firstIndex(of: target) else { return order }
+        result.insert(item, at: targetIndex)
+        return result
     }
 }
 

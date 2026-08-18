@@ -57,6 +57,14 @@ struct HermesUsageMonitorAppTests {
                 by: -1
             ) == [.opencodeGo, .chatGPT, .nousPortal]
         )
+        #expect(
+            SubscriptionOrderStore.movedBefore(
+                order,
+                visibleItems: order,
+                item: .chatGPT,
+                target: .nousPortal
+            ) == [.chatGPT, .nousPortal, .opencodeGo]
+        )
     }
 
     @Test("persisted subscription order is normalized on load")
