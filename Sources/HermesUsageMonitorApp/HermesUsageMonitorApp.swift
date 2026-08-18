@@ -55,15 +55,13 @@ private final class UsageViewModel {
         availability = state.availability
         updatedAt = state.updatedAt
         await resetService.process(state)
-        do {
-            accountingBySubscription = try accountingService.readGroupedBySubscription()
+        switch accountingService.readGroupedBySubscription() {
+        case let .available(grouped):
+            accountingBySubscription = grouped
             accountingAvailability = .available
-        } catch let error as LocalAccountingReadError {
+        case let .unavailable(reason):
             accountingBySubscription = [:]
-            accountingAvailability = .unavailable(error.label)
-        } catch {
-            accountingBySubscription = [:]
-            accountingAvailability = .unavailable("La contabilità locale non è leggibile.")
+            accountingAvailability = .unavailable(reason.label)
         }
     }
 
@@ -346,7 +344,7 @@ private extension Subscription {
     }
 }
 
-private extension LocalAccountingReadError {
+private extension LocalAccountingUnavailableReason {
     var label: String {
         switch self {
         case .sourceMissing:

@@ -1,5 +1,12 @@
 import Foundation
 
+enum HermesAccountingReadError: Error {
+    case sourceMissing
+    case sourceUnreadable
+    case malformedData
+    case unsupportedVersion
+}
+
 public struct HermesAccountingReader: Sendable {
     private let fileURL: URL
 
@@ -18,25 +25,25 @@ public struct HermesAccountingReader: Sendable {
 
     public func read() throws -> [LocalAccounting] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            throw LocalAccountingReadError.sourceMissing
+            throw HermesAccountingReadError.sourceMissing
         }
 
         let data: Data
         do {
             data = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
         } catch {
-            throw LocalAccountingReadError.sourceUnreadable
+            throw HermesAccountingReadError.sourceUnreadable
         }
 
         let payload: Payload
         do {
             payload = try JSONDecoder().decode(Payload.self, from: data)
         } catch {
-            throw LocalAccountingReadError.malformedData
+            throw HermesAccountingReadError.malformedData
         }
 
         guard payload.version == 1 else {
-            throw LocalAccountingReadError.unsupportedVersion
+            throw HermesAccountingReadError.unsupportedVersion
         }
 
         do {
@@ -56,7 +63,7 @@ public struct HermesAccountingReader: Sendable {
                 )
             }
         } catch {
-            throw LocalAccountingReadError.malformedData
+            throw HermesAccountingReadError.malformedData
         }
     }
 }

@@ -7,11 +7,16 @@ public enum AccountingDomainError: Error, Equatable, Sendable {
     case invalidCurrency
 }
 
-public enum LocalAccountingReadError: Error, Equatable, Sendable {
+public enum LocalAccountingUnavailableReason: Equatable, Sendable {
     case sourceMissing
     case sourceUnreadable
     case malformedData
     case unsupportedVersion
+}
+
+public enum GroupedLocalAccountingResult: Equatable, Sendable {
+    case available([Subscription: [LocalAccounting]])
+    case unavailable(LocalAccountingUnavailableReason)
 }
 
 public struct AccountingTokens: Equatable, Sendable {

@@ -35,8 +35,12 @@ struct HermesAccountingReaderIntegrationTests {
         )
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let grouped = try LocalAccountingService(source: HermesAccountingReader(fileURL: fileURL))
+        let result = LocalAccountingService(source: HermesAccountingReader(fileURL: fileURL))
             .readGroupedBySubscription()
+        guard case let .available(grouped) = result else {
+            Issue.record("Expected available accounting")
+            return
+        }
         #expect(grouped[.nousPortal]?.first?.profile == "one")
         #expect(grouped[.nousPortal]?.first?.cost?.currency == "USD")
         #expect(grouped[.opencodeGo]?.first?.profile == "two")

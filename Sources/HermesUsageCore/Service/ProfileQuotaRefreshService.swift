@@ -22,58 +22,76 @@ public struct SubscriptionRefreshState: Equatable, Sendable {
     }
 }
 
+public protocol ProfileQuotaRefreshObserver: Sendable {
+    func record(_ state: SubscriptionRefreshState)
+}
+
+struct NoopProfileQuotaRefreshObserver: ProfileQuotaRefreshObserver {
+    func record(_ state: SubscriptionRefreshState) {}
+}
+
 public actor ProfileQuotaRefreshService {
     public static let defaultInterval: Duration = .seconds(900)
 
     private let source: any ProfileQuotaSource
     private let clock: @Sendable () -> Date
     private let aggregator: ProfileQuotaAggregationService
+    private let observer: any ProfileQuotaRefreshObserver
     private var lastSuccessful: [SubscriptionQuota]?
 
     public init(
         hermesHome: URL,
-        clock: @escaping @Sendable () -> Date = Date.init
+        clock: @escaping @Sendable () -> Date = Date.init,
+        observer: any ProfileQuotaRefreshObserver = OSLogProfileQuotaRefreshObserver()
     ) {
         self.init(
             source: HermesProfileQuotaSnapshotReader(hermesHome: hermesHome, now: clock),
-            clock: clock
+            clock: clock,
+            observer: observer
         )
     }
 
     init(
         source: any ProfileQuotaSource,
-        clock: @escaping @Sendable () -> Date = Date.init
+        clock: @escaping @Sendable () -> Date = Date.init,
+        observer: any ProfileQuotaRefreshObserver = NoopProfileQuotaRefreshObserver()
     ) {
         self.source = source
         self.clock = clock
         aggregator = ProfileQuotaAggregationService(source: source)
+        self.observer = observer
     }
 
     public func refresh() async -> SubscriptionRefreshState {
         let observations = await source.read()
         guard !observations.isEmpty else {
             if let lastSuccessful {
-                return SubscriptionRefreshState(
+                return record(SubscriptionRefreshState(
                     subscriptions: lastSuccessful.map(markStale),
                     availability: .offline,
                     updatedAt: QuotaTimestamp(date: clock())
-                )
+                ))
             }
 
-            return SubscriptionRefreshState(
+            return record(SubscriptionRefreshState(
                 subscriptions: aggregator.aggregate([]),
                 availability: .waiting,
                 updatedAt: nil
-            )
+            ))
         }
 
         let subscriptions = aggregator.aggregate(observations)
         lastSuccessful = subscriptions
-        return SubscriptionRefreshState(
+        return record(SubscriptionRefreshState(
             subscriptions: subscriptions,
             availability: .live,
             updatedAt: QuotaTimestamp(date: clock())
-        )
+        ))
+    }
+
+    private func record(_ state: SubscriptionRefreshState) -> SubscriptionRefreshState {
+        observer.record(state)
+        return state
     }
 
     private func markStale(_ subscription: SubscriptionQuota) -> SubscriptionQuota {

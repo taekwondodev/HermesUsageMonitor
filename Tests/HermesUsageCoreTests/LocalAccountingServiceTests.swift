@@ -22,8 +22,12 @@ struct LocalAccountingServiceTests {
             provider: "openai"
         )
         let other = try LocalAccounting(subscription: .nousPortal, requests: 4)
-        let grouped = try LocalAccountingService(source: StubSource([first, second, other]))
+        let result = LocalAccountingService(source: StubSource([first, second, other]))
             .readGroupedBySubscription()
+        guard case let .available(grouped) = result else {
+            Issue.record("Expected available accounting")
+            return
+        }
 
         #expect(grouped[.chatGPT]?.count == 2)
         #expect(grouped[.chatGPT]?.contains { $0.cost != nil } == true)
