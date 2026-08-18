@@ -3,6 +3,10 @@ import UserNotifications
 
 struct MacOSQuotaResetNotifier: QuotaResetNotifier, Sendable {
     func notify(_ notification: QuotaResetNotification) async {
+        guard MacOSNotificationEnvironment.canUseUserNotifications else {
+            return
+        }
+
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
 
@@ -26,6 +30,12 @@ struct MacOSQuotaResetNotifier: QuotaResetNotifier, Sendable {
             trigger: nil
         )
         try? await center.add(request)
+    }
+}
+
+enum MacOSNotificationEnvironment {
+    static var canUseUserNotifications: Bool {
+        Bundle.main.bundleURL.pathExtension == "app"
     }
 }
 

@@ -79,4 +79,9 @@ struct HermesUsageMonitorAppTests {
                 [.chatGPT, .nousPortal, .opencodeGo]
         )
     }
+
+    @Test("notification adapter is disabled outside an app bundle")
+    func notificationAdapterRequiresAppBundle() {
+        #expect(MacOSNotificationEnvironment.canUseUserNotifications == false)
+    }
 }
