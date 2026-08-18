@@ -36,10 +36,20 @@ cp "${EXECUTABLE}" "${MACOS}/${APP_NAME}"
 cp -R "${RESOURCE_BUNDLE}" "${RESOURCES}/"
 cp "${PROJECT_ROOT}/scripts/Info.plist" "${CONTENTS}/Info.plist"
 
-ICONSET="${STAGE_ROOT}/AppIcon.iconset"
 printf 'Generating Finder icon…\n'
-swift "${PROJECT_ROOT}/scripts/generate-app-icon.swift" "${ICONSET}"
-iconutil --convert icns --output "${RESOURCES}/AppIcon.icns" "${ICONSET}"
+ASSET_CATALOG="${PROJECT_ROOT}/Sources/HermesUsageMonitorApp/Resources/Media.xcassets"
+ASSET_PARTIAL_PLIST="${STAGE_ROOT}/assetcatalog-info.plist"
+xcrun actool \
+    --compile "${RESOURCES}" \
+    --platform macosx \
+    --minimum-deployment-target 26.0 \
+    --app-icon AppIcon \
+    --output-partial-info-plist "${ASSET_PARTIAL_PLIST}" \
+    --notices \
+    --warnings \
+    "${ASSET_CATALOG}"
+plutil -replace CFBundleIconName -string AppIcon "${CONTENTS}/Info.plist"
+plutil -remove CFBundleIconFile "${CONTENTS}/Info.plist" 2>/dev/null || true
 
 printf 'Signing ad-hoc…\n'
 codesign --force --deep --sign - --timestamp=none "${STAGE_APP}"

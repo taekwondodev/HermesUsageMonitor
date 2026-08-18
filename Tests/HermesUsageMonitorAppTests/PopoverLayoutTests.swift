@@ -20,13 +20,10 @@ struct HermesUsageMonitorAppTests {
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/HermesUsageMonitorApp/Resources")
 
-        for name in ProviderAssetCatalog.all {
-            let matches = ["png", "jpg"].contains { ext in
-                FileManager.default.fileExists(
-                    atPath: resources.appendingPathComponent("\(name).\(ext)").path
-                )
-            }
-            #expect(matches)
+        let catalog = resources.appendingPathComponent("Media.xcassets")
+        for name in ProviderAssetCatalog.all + ["HermesMenuBarIcon"] {
+            let imageSet = catalog.appendingPathComponent("\(name).imageset")
+            #expect(FileManager.default.fileExists(atPath: imageSet.appendingPathComponent("Contents.json").path))
         }
     }
 

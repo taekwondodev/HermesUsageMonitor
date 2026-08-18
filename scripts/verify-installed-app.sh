@@ -9,10 +9,13 @@ BUNDLE_ID="com.taekwondodev.HermesUsageMonitor"
 [[ -x "${APP}/Contents/MacOS/${APP_NAME}" ]] || { printf 'Missing executable.\n' >&2; exit 1; }
 [[ -f "${APP}/Contents/Info.plist" ]] || { printf 'Missing Info.plist.\n' >&2; exit 1; }
 [[ -f "${APP}/Contents/Resources/AppIcon.icns" ]] || { printf 'Missing Finder icon.\n' >&2; exit 1; }
+[[ -f "${APP}/Contents/Resources/Assets.car" ]] || { printf 'Missing compiled asset catalog.\n' >&2; exit 1; }
 [[ -d "${APP}/Contents/Resources/${APP_NAME}_HermesUsageMonitorApp.bundle" ]] || { printf 'Missing resource bundle.\n' >&2; exit 1; }
 
 actual_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP}/Contents/Info.plist")"
 [[ "${actual_id}" == "${BUNDLE_ID}" ]] || { printf 'Unexpected bundle identifier: %s\n' "${actual_id}" >&2; exit 1; }
+icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "${APP}/Contents/Info.plist")"
+[[ "${icon_name}" == "AppIcon" ]] || { printf 'Unexpected app icon name: %s\n' "${icon_name}" >&2; exit 1; }
 
 codesign --verify --deep --strict "${APP}"
 open "${APP}"

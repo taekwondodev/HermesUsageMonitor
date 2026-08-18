@@ -26,8 +26,8 @@
     <string>26.0</string>
     <key>LSUIElement</key>
     <true/>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon.icns</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>NSUserNotificationAlertStyle</key>
     <string>alert</string>
 </dict>

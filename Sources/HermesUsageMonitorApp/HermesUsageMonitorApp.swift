@@ -32,8 +32,11 @@ struct HermesUsageMonitorApp: App {
                 }
             )
         } label: {
-            HermesMark()
-                .accessibilityLabel("AI usage")
+            Label {
+                Text("AI usage")
+            } icon: {
+                HermesMenuBarIcon()
+            }
         }
         .menuBarExtraStyle(.window)
     }
@@ -442,21 +445,22 @@ private struct AccountingSection: View {
     }
 }
 
-private struct HermesMark: View {
+private struct HermesMenuBarIcon: View {
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Circle()
-                .strokeBorder(.primary, lineWidth: 1.2)
-
-            Text("H")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-
-            Image(systemName: "sparkle")
-                .font(.system(size: 6, weight: .bold))
-                .offset(x: 2, y: -2)
+        if let image = Self.loadImage() {
+            Image(nsImage: image)
         }
-        .frame(width: 18, height: 18)
-        .accessibilityHidden(true)
+    }
+
+    private static func loadImage() -> NSImage? {
+        guard let image = NSImage(named: "HermesMenuBarIcon") else {
+            return nil
+        }
+        let ratio = image.size.height / image.size.width
+        image.isTemplate = true
+        image.size.height = 15
+        image.size.width = 15 / ratio
+        return image
     }
 }
 
@@ -503,30 +507,14 @@ private struct SubscriptionIdentityIcon: View {
 }
 
 enum ProviderAssetCatalog {
-    static let bundle: Bundle = {
-        if let url = Bundle.main.url(
-            forResource: "HermesUsageMonitor_HermesUsageMonitorApp",
-            withExtension: "bundle"
-        ), let bundle = Bundle(url: url) {
-            return bundle
-        }
-        return Bundle.module
-    }()
-    static let nousPortal = "nous-portal"
-    static let opencodeGo = "opencode-go"
-    static let chatGPT = "chatgpt"
+    static let nousPortal = "NousPortalIcon"
+    static let opencodeGo = "OpenCodeGoIcon"
+    static let chatGPT = "ChatGPTIcon"
 
     static let all = [nousPortal, opencodeGo, chatGPT]
 
     static func image(named name: String) -> NSImage? {
-        for ext in ["png", "jpg"] {
-            guard let url = bundle.url(forResource: name, withExtension: ext),
-                  let image = NSImage(contentsOf: url) else {
-                continue
-            }
-            return image
-        }
-        return nil
+        NSImage(named: name)
     }
 }
 
