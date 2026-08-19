@@ -3,13 +3,13 @@ import Testing
 @testable import HermesUsageCore
 
 struct QuotaResetNotificationServiceTests {
-    @Test("notifies once when a later live snapshot shows a reset")
+    @Test("notifies once when a later live snapshot shows a verified reset")
     func detectsSingleReset() async throws {
         let notifier = RecordingNotifier()
         let service = QuotaResetNotificationService(notifier: notifier)
 
         await service.process(try state(usedPercent: 90, resetAt: 1_000))
-        await service.process(try state(usedPercent: 10, resetAt: 2_000))
+        await service.process(try state(usedPercent: 0, resetAt: 2_000))
 
         let notifications = await notifier.notifications
         #expect(notifications.count == 1)
@@ -32,9 +32,9 @@ struct QuotaResetNotificationServiceTests {
         ))
         await service.process(try state(
             windows: [
-                try window(kind: .rollingFiveHours, label: "5 hours", usedPercent: 10, resetAt: 2_000),
-                try window(kind: .weekly, label: "Weekly", usedPercent: 5, resetAt: 4_000),
-                try window(kind: .monthly, label: "Monthly", usedPercent: 2, resetAt: 6_000)
+                try window(kind: .rollingFiveHours, label: "5 hours", usedPercent: 0, resetAt: 2_000),
+                try window(kind: .weekly, label: "Weekly", usedPercent: 0, resetAt: 4_000),
+                try window(kind: .monthly, label: "Monthly", usedPercent: 0, resetAt: 6_000)
             ]
         ))
 
@@ -48,7 +48,7 @@ struct QuotaResetNotificationServiceTests {
         let notifier = RecordingNotifier()
         let service = QuotaResetNotificationService(notifier: notifier)
         let baseline = try state(usedPercent: 90, resetAt: 1_000)
-        let reset = try state(usedPercent: 10, resetAt: 2_000)
+        let reset = try state(usedPercent: 0, resetAt: 2_000)
 
         await service.process(baseline)
         await service.process(reset)
@@ -78,7 +78,7 @@ struct QuotaResetNotificationServiceTests {
             availability: .offline,
             updatedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 2_000))
         )
-        let reset = try state(usedPercent: 10, resetAt: 2_000)
+        let reset = try state(usedPercent: 0, resetAt: 2_000)
 
         await service.process(baseline)
         await service.process(offline)
@@ -90,6 +90,43 @@ struct QuotaResetNotificationServiceTests {
 
         #expect(await notifier.notifications.count == 1)
         #expect(await restartedNotifier.notifications.isEmpty)
+    }
+
+    @Test("does not notify for a repeated zero observation while reset advances")
+    func ignoresRepeatedZeroObservation() async throws {
+        let notifier = RecordingNotifier()
+        let service = QuotaResetNotificationService(notifier: notifier)
+
+        await service.process(try state(usedPercent: 0, resetAt: 1_000))
+        await service.process(try state(usedPercent: 0, resetAt: 2_000))
+
+        #expect(await notifier.notifications.isEmpty)
+    }
+
+    @Test("does not notify when the reset timestamp does not advance")
+    func ignoresNonAdvancedResetTimestamp() async throws {
+        let notifier = RecordingNotifier()
+        let service = QuotaResetNotificationService(notifier: notifier)
+
+        await service.process(try state(usedPercent: 90, resetAt: 1_000))
+        await service.process(try state(usedPercent: 0, resetAt: 1_000))
+
+        #expect(await notifier.notifications.isEmpty)
+    }
+
+    @Test("does not notify when the reset timestamp is missing")
+    func ignoresMissingResetTimestamp() async throws {
+        let notifier = RecordingNotifier()
+        let service = QuotaResetNotificationService(notifier: notifier)
+
+        await service.process(try state(
+            windows: [try window(kind: .rollingFiveHours, label: "5 hours", usedPercent: 90, resetAt: 1_000)]
+        ))
+        await service.process(try state(
+            windows: [try window(kind: .rollingFiveHours, label: "5 hours", usedPercent: 0, resetAt: nil)]
+        ))
+
+        #expect(await notifier.notifications.isEmpty)
     }
 
     private func state(
@@ -136,13 +173,13 @@ struct QuotaResetNotificationServiceTests {
         kind: QuotaWindowKind,
         label: String,
         usedPercent: Double,
-        resetAt: TimeInterval
+        resetAt: TimeInterval?
     ) throws -> QuotaWindow {
         try QuotaWindow(
             kind: kind,
             label: label,
             usedPercent: usedPercent,
-            resetAt: QuotaReset(date: Date(timeIntervalSince1970: resetAt))
+            resetAt: resetAt.map { QuotaReset(date: Date(timeIntervalSince1970: $0)) }
         )
     }
 

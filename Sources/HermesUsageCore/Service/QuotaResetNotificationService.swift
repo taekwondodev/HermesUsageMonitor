@@ -66,7 +66,9 @@ public enum QuotaResetDetector {
     }
 
     private static func didReset(previous: QuotaWindow, current: QuotaWindow) -> Bool {
-        guard let previousReset = previous.resetAt?.at.date,
+        guard previous.usedPercent > 0,
+              current.usedPercent == 0,
+              let previousReset = previous.resetAt?.at.date,
               let currentReset = current.resetAt?.at.date else {
             return false
         }
