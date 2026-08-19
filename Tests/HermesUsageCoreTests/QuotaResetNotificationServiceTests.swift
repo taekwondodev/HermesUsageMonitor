@@ -40,7 +40,11 @@ struct QuotaResetNotificationServiceTests {
 
         let notifications = await notifier.notifications
         #expect(notifications.count == 1)
-        #expect(notifications[0].events.count == 3)
+        #expect(notifications[0].events == [
+            QuotaResetEvent(subscription: .nousPortal, windowKind: .rollingFiveHours, windowLabel: "5 hours"),
+            QuotaResetEvent(subscription: .nousPortal, windowKind: .weekly, windowLabel: "Weekly"),
+            QuotaResetEvent(subscription: .nousPortal, windowKind: .monthly, windowLabel: "Monthly")
+        ])
     }
 
     @Test("does not notify twice for the same refresh")
