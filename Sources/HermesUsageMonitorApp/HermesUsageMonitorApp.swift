@@ -494,7 +494,7 @@ private struct SubscriptionCard: View {
                         .accessibilityValue("\(window.usedPercent, specifier: "%.0f") percent used")
 
                     if let resetAt = window.resetAt?.at.date {
-                        if resetAt <= Date() {
+                        if resetAt <= uiNow {
                             let reference = QuotaWindowReference(
                                 subscription: subscription.subscription,
                                 kind: window.kind
