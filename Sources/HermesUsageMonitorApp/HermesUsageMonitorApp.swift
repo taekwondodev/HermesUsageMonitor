@@ -50,11 +50,13 @@ private final class UsageViewModel {
     var updatedAt: QuotaTimestamp?
     var accountingBySubscription: [Subscription: [LocalAccounting]] = [:]
     var accountingAvailability: AccountingAvailability = .waiting
+    var uiNow = Date()
 
     private let service: ProfileQuotaRefreshService
     private let resetService: QuotaResetNotificationService
     private let accountingService: LocalAccountingService
     private var automaticRefreshTask: Task<Void, Never>? = nil
+    private var uiTimerTask: Task<Void, Never>? = nil
     private var resetRefreshTask: Task<Void, Never>? = nil
     private var resetRetryTask: Task<Void, Never>? = nil
     private var inFlightRefresh: Task<SubscriptionRefreshState, Never>?
@@ -183,6 +185,28 @@ private final class UsageViewModel {
         )
     }
 
+    func startUITimer() {
+        uiTimerTask?.cancel()
+        uiNow = Date()
+        uiTimerTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                self.uiNow = Date()
+            }
+        }
+    }
+
+    func stopUITimer() {
+        uiTimerTask?.cancel()
+        uiTimerTask = nil
+    }
+
     func startAutomaticRefresh() {
         guard automaticRefreshTask == nil else { return }
         automaticRefreshTask = Task { [weak self] in
@@ -202,6 +226,7 @@ private final class UsageViewModel {
     func stopAutomaticRefresh() {
         automaticRefreshTask?.cancel()
         automaticRefreshTask = nil
+        stopUITimer()
         resetRefreshTask?.cancel()
         resetRefreshTask = nil
         resetRetryTask?.cancel()
@@ -232,6 +257,7 @@ private struct UsagePopoverView: View {
                         accounting: model.accountingBySubscription[subscription.subscription] ?? [],
                         accountingAvailability: model.accountingAvailability,
                         pendingQuotaRefreshWindows: model.pendingQuotaRefreshWindows,
+                        uiNow: model.uiNow,
                         isAccountingExpanded: Binding(
                             get: { expandedSubscriptions.contains(subscription.subscription) },
                             set: { expanded in
@@ -280,7 +306,7 @@ private struct UsagePopoverView: View {
             .foregroundStyle(.secondary)
 
             if let updatedAt = model.updatedAt {
-                Text("\(model.availability == .offline ? "Controllato" : "Aggiornato") \(updatedAt.date, style: .relative)")
+                Text("\(model.availability == .offline ? "Controllato" : "Aggiornato") \(updatedAt.date, format: .dateTime.day().month().hour().minute())")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -290,6 +316,12 @@ private struct UsagePopoverView: View {
         .padding(16)
         .frame(width: 380)
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
+        .onAppear {
+            model.startUITimer()
+        }
+        .onDisappear {
+            model.stopUITimer()
+        }
     }
 
     private func setAccounting(for subscription: Subscription, expanded: Bool) {
@@ -382,6 +414,7 @@ private struct SubscriptionCard: View {
     let accounting: [LocalAccounting]
     let accountingAvailability: AccountingAvailability
     let pendingQuotaRefreshWindows: Set<QuotaWindowReference>
+    let uiNow: Date
     @Binding var isAccountingExpanded: Bool
     let onMove: (Subscription, Int) -> Void
 
@@ -474,9 +507,11 @@ private struct SubscriptionCard: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         } else {
-                            Text("Reset \(resetAt, style: .relative)")
+                            Text("Reset \(resetAt, format: .dateTime.hour().minute()) · \(countdownLabel(until: resetAt))")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
+                                .accessibilityLabel("Reset alle \(resetAt, format: .dateTime.hour().minute())")
+                                .accessibilityValue(countdownLabel(until: resetAt))
                         }
                     } else {
                         Text("Reset non disponibile")
@@ -490,7 +525,7 @@ private struct SubscriptionCard: View {
                 .font(.caption2)
                 .foregroundStyle(snapshot.freshness == .stale ? Color.orange : Color.gray)
 
-            Text("Snapshot acquisito \(snapshot.capturedAt.date, style: .relative)")
+            Text("Snapshot acquisito \(snapshot.capturedAt.date, format: .dateTime.day().month().hour().minute())")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -506,6 +541,26 @@ private struct SubscriptionCard: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    private func countdownLabel(until date: Date) -> String {
+        let seconds = QuotaTemporalPolicy.secondsRemaining(until: date, now: uiNow)
+        if seconds < 60 {
+            return "tra \(seconds)s"
+        }
+
+        let minutes = (seconds + 59) / 60
+        if minutes < 60 {
+            return "tra \(minutes) min"
+        }
+
+        let hours = (minutes + 59) / 60
+        if hours < 24 {
+            return "tra \(hours) h"
+        }
+
+        let days = (hours + 23) / 24
+        return "tra \(days) g"
     }
 
     private func isHigherRisk(_ lhs: QuotaWindow, _ rhs: QuotaWindow) -> Bool {
