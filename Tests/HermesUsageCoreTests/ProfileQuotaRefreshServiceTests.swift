@@ -39,21 +39,52 @@ struct ProfileQuotaRefreshServiceTests {
         #expect(state.subscriptions.count == 3)
     }
 
-    private func observation() throws -> ProfileQuotaObservation {
+    @Test("preserves the last snapshot for a partially unavailable subscription")
+    func preservesPartialSnapshot() async throws {
+        let source = SequenceSource(reads: [
+            [try observation(subscription: .nousPortal, usedPercent: 25),
+             try observation(subscription: .opencodeGo, usedPercent: 40)],
+            [try observation(subscription: .nousPortal, usedPercent: 10)]
+        ])
+        let service = ProfileQuotaRefreshService(source: source, clock: Date.init)
+
+        _ = await service.refresh()
+        let partial = await service.refresh()
+
+        guard case let .snapshot(nous) = partial.subscriptions.first(where: {
+            $0.subscription == .nousPortal
+        })?.result,
+        case let .snapshot(opencode) = partial.subscriptions.first(where: {
+            $0.subscription == .opencodeGo
+        })?.result else {
+            Issue.record("Expected both subscriptions to retain usable snapshots")
+            return
+        }
+
+        #expect(nous.freshness == .live)
+        #expect(nous.windows[0].usedPercent == 10)
+        #expect(opencode.freshness == .stale)
+        #expect(opencode.windows[0].usedPercent == 40)
+    }
+
+    private func observation(
+        subscription: Subscription = .nousPortal,
+        usedPercent: Double = 25
+    ) throws -> ProfileQuotaObservation {
         let snapshot = try QuotaSnapshot(
-            subscription: .nousPortal,
+            subscription: subscription,
             capturedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 100)),
             freshness: .live,
             windows: [try QuotaWindow(
                 kind: .rollingFiveHours,
                 label: "5 hours",
-                usedPercent: 25
+                usedPercent: usedPercent
             )],
             source: try QuotaSource(identifier: "test")
         )
         return try ProfileQuotaObservation(
             profile: try HermesProfileID(value: "test"),
-            subscription: .nousPortal,
+            subscription: subscription,
             observedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 100)),
             result: .snapshot(snapshot)
         )

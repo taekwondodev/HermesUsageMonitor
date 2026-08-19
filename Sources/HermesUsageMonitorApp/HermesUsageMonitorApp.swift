@@ -55,6 +55,17 @@ private final class UsageViewModel {
     private let resetService: QuotaResetNotificationService
     private let accountingService: LocalAccountingService
     private var automaticRefreshTask: Task<Void, Never>? = nil
+    private var resetRefreshTask: Task<Void, Never>? = nil
+    private var resetRetryTask: Task<Void, Never>? = nil
+    private var inFlightRefresh: Task<SubscriptionRefreshState, Never>?
+    var pendingQuotaRefreshWindows: Set<QuotaWindowReference> = []
+
+    private enum RefreshTrigger {
+        case manual
+        case automatic
+        case scheduled
+        case retry
+    }
 
     init() {
         let hermesHome = ProcessInfo.processInfo.environment["HERMES_HOME"]
@@ -75,7 +86,25 @@ private final class UsageViewModel {
     }
 
     func refresh() async {
-        let state = await service.refresh()
+        await refresh(trigger: .manual)
+    }
+
+    private func refresh(trigger: RefreshTrigger) async {
+        if trigger != .retry {
+            resetRetryTask?.cancel()
+            resetRetryTask = nil
+        }
+
+        let state: SubscriptionRefreshState
+        if let inFlightRefresh {
+            state = await inFlightRefresh.value
+        } else {
+            let task = Task { await service.refresh() }
+            inFlightRefresh = task
+            state = await task.value
+            inFlightRefresh = nil
+        }
+
         subscriptions = state.subscriptions
         availability = state.availability
         updatedAt = state.updatedAt
@@ -88,20 +117,84 @@ private final class UsageViewModel {
             accountingBySubscription = [:]
             accountingAvailability = .unavailable(reason.label)
         }
+
+        pendingQuotaRefreshWindows.removeAll()
+        scheduleResetRefresh(from: state)
+    }
+
+    private func scheduleResetRefresh(from state: SubscriptionRefreshState) {
+        resetRefreshTask?.cancel()
+        resetRefreshTask = nil
+
+        guard let resetAt = QuotaRefreshSchedule.nextLiveReset(in: state, now: Date()) else {
+            return
+        }
+
+        let delay = max(0, resetAt.timeIntervalSinceNow)
+        resetRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, let self else { return }
+
+                let attemptedWindows = QuotaRefreshSchedule.expiredLiveWindows(
+                    in: state,
+                    now: Date()
+                )
+                guard !attemptedWindows.isEmpty else { return }
+
+                self.pendingQuotaRefreshWindows.formUnion(attemptedWindows)
+                try await Task.sleep(for: .seconds(QuotaRefreshSchedule.postResetDelay))
+                guard !Task.isCancelled else { return }
+
+                await self.refresh(trigger: .scheduled)
+                if QuotaRefreshSchedule.shouldRetry(
+                    state: self.currentRefreshState,
+                    attemptedWindows: attemptedWindows,
+                    now: Date()
+                ) {
+                    self.scheduleResetRetry(for: attemptedWindows)
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func scheduleResetRetry(for windows: Set<QuotaWindowReference>) {
+        resetRetryTask?.cancel()
+        resetRetryTask = Task { [weak self] in
+            do {
+                guard let retryDelay = QuotaRefreshSchedule.nextRetryDelay(after: 0) else { return }
+                try await Task.sleep(for: retryDelay)
+                guard !Task.isCancelled, let self else { return }
+                self.pendingQuotaRefreshWindows.formUnion(windows)
+                await self.refresh(trigger: .retry)
+            } catch {
+                return
+            }
+        }
+    }
+
+    private var currentRefreshState: SubscriptionRefreshState {
+        SubscriptionRefreshState(
+            subscriptions: subscriptions,
+            availability: availability,
+            updatedAt: updatedAt
+        )
     }
 
     func startAutomaticRefresh() {
         guard automaticRefreshTask == nil else { return }
         automaticRefreshTask = Task { [weak self] in
             guard let self else { return }
-            await refresh()
+            await self.refresh(trigger: .automatic)
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: ProfileQuotaRefreshService.defaultInterval)
                 } catch {
                     return
                 }
-                await refresh()
+                await self.refresh(trigger: .automatic)
             }
         }
     }
@@ -109,6 +202,10 @@ private final class UsageViewModel {
     func stopAutomaticRefresh() {
         automaticRefreshTask?.cancel()
         automaticRefreshTask = nil
+        resetRefreshTask?.cancel()
+        resetRefreshTask = nil
+        resetRetryTask?.cancel()
+        resetRetryTask = nil
     }
 }
 
@@ -134,6 +231,7 @@ private struct UsagePopoverView: View {
                         subscription: subscription,
                         accounting: model.accountingBySubscription[subscription.subscription] ?? [],
                         accountingAvailability: model.accountingAvailability,
+                        pendingQuotaRefreshWindows: model.pendingQuotaRefreshWindows,
                         isAccountingExpanded: Binding(
                             get: { expandedSubscriptions.contains(subscription.subscription) },
                             set: { expanded in
@@ -283,6 +381,7 @@ private struct SubscriptionCard: View {
     let subscription: SubscriptionQuota
     let accounting: [LocalAccounting]
     let accountingAvailability: AccountingAvailability
+    let pendingQuotaRefreshWindows: Set<QuotaWindowReference>
     @Binding var isAccountingExpanded: Bool
     let onMove: (Subscription, Int) -> Void
 
@@ -362,9 +461,23 @@ private struct SubscriptionCard: View {
                         .accessibilityValue("\(window.usedPercent, specifier: "%.0f") percent used")
 
                     if let resetAt = window.resetAt?.at.date {
-                        Text("Reset \(resetAt, style: .relative)")
+                        if resetAt <= Date() {
+                            let reference = QuotaWindowReference(
+                                subscription: subscription.subscription,
+                                kind: window.kind
+                            )
+                            Text(
+                                pendingQuotaRefreshWindows.contains(reference)
+                                    ? "Aggiornamento quota..."
+                                    : "Quota non disponibile"
+                            )
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                        } else {
+                            Text("Reset \(resetAt, style: .relative)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     } else {
                         Text("Reset non disponibile")
                             .font(.caption2)

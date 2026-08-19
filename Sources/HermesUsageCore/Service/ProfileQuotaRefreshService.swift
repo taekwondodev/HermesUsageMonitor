@@ -80,13 +80,29 @@ public actor ProfileQuotaRefreshService {
             ))
         }
 
-        let subscriptions = aggregator.aggregate(observations)
+        let subscriptions = mergeWithLastSuccessful(aggregator.aggregate(observations))
         lastSuccessful = subscriptions
         return record(SubscriptionRefreshState(
             subscriptions: subscriptions,
             availability: .live,
             updatedAt: QuotaTimestamp(date: clock())
         ))
+    }
+
+    private func mergeWithLastSuccessful(
+        _ subscriptions: [SubscriptionQuota]
+    ) -> [SubscriptionQuota] {
+        guard let lastSuccessful else { return subscriptions }
+
+        return subscriptions.map { current in
+            guard case .unavailable = current.result,
+                  let previous = lastSuccessful.first(where: {
+                      $0.subscription == current.subscription
+                  }) else {
+                return current
+            }
+            return markStale(previous)
+        }
     }
 
     private func record(_ state: SubscriptionRefreshState) -> SubscriptionRefreshState {
