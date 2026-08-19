@@ -114,6 +114,44 @@ struct HermesBridgeIntegrationTests {
         #expect(value.models == ["openai/gpt-5.6-luna"])
     }
 
+    @Test("reads a state.db that uses WAL journal mode")
+    func readsWalStateDatabase() throws {
+        let hermesHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let databaseURL = hermesHome.appendingPathComponent("state.db")
+        try FileManager.default.createDirectory(
+            at: hermesHome,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: hermesHome) }
+
+        // Hermes keeps state.db in WAL mode, which previously broke the
+        // `-readonly` open (exit 14). Guard the WAL read path explicitly.
+        try runSQLite(
+            databaseURL: databaseURL,
+            sql: """
+            PRAGMA journal_mode=WAL;
+            CREATE TABLE session_model_usage (
+              billing_provider TEXT,
+              model TEXT,
+              input_tokens INTEGER,
+              output_tokens INTEGER,
+              api_call_count INTEGER,
+              estimated_cost_usd REAL,
+              actual_cost_usd REAL
+            );
+            INSERT INTO session_model_usage VALUES ('nous','openai/gpt-5.6-luna',100,25,2,0.12,0);
+            """
+        )
+
+        let values = try HermesStateDBAccountingReader(hermesHome: hermesHome)
+            .read()
+        let value = try #require(values.first)
+
+        #expect(value.subscription == .nousPortal)
+        #expect(value.requests == 2)
+    }
+
     private func runSQLite(databaseURL: URL, sql: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")

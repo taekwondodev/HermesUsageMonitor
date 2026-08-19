@@ -85,7 +85,13 @@ public struct HermesStateDBAccountingReader: LocalAccountingSource, Sendable {
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = ["-readonly", "-json", databaseURL.path, sql]
+
+        // Do NOT use `-readonly`: Hermes keeps state.db in WAL mode, and a
+        // read-only connection cannot open the shared -shm/-wal index, so
+        // `-readonly` fails with exit 14 and every read reports unavailable.
+        // Open normally and enforce query-only so the read never mutates data
+        // while still reading WAL (including not-yet-checkpointed rows).
+        process.arguments = ["-json", databaseURL.path, "PRAGMA query_only=ON; " + sql]
 
         do {
             try process.run()
