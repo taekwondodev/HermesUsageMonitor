@@ -525,9 +525,16 @@ private struct SubscriptionCard: View {
                 .font(.caption2)
                 .foregroundStyle(snapshot.freshness == .stale ? Color.orange : Color.gray)
 
-            Text("Snapshot acquisito \(snapshot.capturedAt.date, format: .dateTime.day().month().hour().minute())")
+            Text("Snapshot acquisito \(QuotaTemporalPolicy.snapshotAgeLabel(capturedAt: snapshot.capturedAt.date, now: uiNow))")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+                .accessibilityLabel("Snapshot acquisito")
+                .accessibilityValue(
+                    QuotaTemporalPolicy.snapshotAgeLabel(
+                        capturedAt: snapshot.capturedAt.date,
+                        now: uiNow
+                    )
+                )
         }
     }
 
