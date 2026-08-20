@@ -23,7 +23,7 @@ public struct HermesAccountingReader: Sendable {
         self.init(fileURL: hermesHome.appendingPathComponent("usage/accounting.json"))
     }
 
-    public func read() throws -> [LocalAccounting] {
+    public func read(window: AccountingWindow) throws -> [LocalAccounting] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw HermesAccountingReadError.sourceMissing
         }

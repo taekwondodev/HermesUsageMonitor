@@ -1,7 +1,7 @@
 import Foundation
 
 public protocol LocalAccountingSource: Sendable {
-    func read() throws -> [LocalAccounting]
+    func read(window: AccountingWindow) throws -> [LocalAccounting]
 }
 
 public protocol LocalAccountingObserver: Sendable {
@@ -17,18 +17,24 @@ extension HermesAccountingReader: LocalAccountingSource {}
 public struct LocalAccountingService: Sendable {
     private let source: any LocalAccountingSource
     private let observer: any LocalAccountingObserver
+    private let clock: @Sendable () -> Date
 
     public init(
         source: any LocalAccountingSource,
-        observer: any LocalAccountingObserver = OSLogLocalAccountingObserver()
+        observer: any LocalAccountingObserver = OSLogLocalAccountingObserver(),
+        clock: @escaping @Sendable () -> Date = Date.init
     ) {
         self.source = source
         self.observer = observer
+        self.clock = clock
     }
 
     public func readGroupedBySubscription() -> GroupedLocalAccountingResult {
         do {
-            let grouped = Dictionary(grouping: try source.read(), by: \.subscription)
+            let grouped = Dictionary(
+                grouping: try source.read(window: AccountingWindow(endingAt: clock())),
+                by: \.subscription
+            )
             let result = GroupedLocalAccountingResult.available(grouped)
             observer.record(result)
             return result

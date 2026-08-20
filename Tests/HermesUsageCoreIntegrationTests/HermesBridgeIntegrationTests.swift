@@ -87,14 +87,15 @@ struct HermesBridgeIntegrationTests {
               output_tokens INTEGER,
               api_call_count INTEGER,
               estimated_cost_usd REAL,
-              actual_cost_usd REAL
+              actual_cost_usd REAL,
+              last_seen REAL
             );
-            INSERT INTO session_model_usage VALUES ('nous','openai/gpt-5.6-luna',100,25,2,0.12,0);
+            INSERT INTO session_model_usage VALUES ('nous','openai/gpt-5.6-luna',100,25,2,0.12,0,1000);
             """
         )
 
         let values = try HermesStateDBAccountingReader(hermesHome: hermesHome)
-            .read()
+            .read(window: AccountingWindow(endingAt: Date(timeIntervalSince1970: 2_000)))
         #expect(values.isEmpty)
     }
 
@@ -122,15 +123,65 @@ struct HermesBridgeIntegrationTests {
               output_tokens INTEGER,
               api_call_count INTEGER,
               estimated_cost_usd REAL,
-              actual_cost_usd REAL
+              actual_cost_usd REAL,
+              last_seen REAL
             );
-            INSERT INTO session_model_usage VALUES ('nous','openai/gpt-5.6-luna',100,25,2,0.12,0);
+            INSERT INTO session_model_usage VALUES ('nous','openai/gpt-5.6-luna',100,25,2,0.12,0,1000);
             """
         )
 
         let values = try HermesStateDBAccountingReader(hermesHome: hermesHome)
-            .read()
+            .read(window: AccountingWindow(endingAt: Date(timeIntervalSince1970: 2_000)))
         #expect(values.isEmpty)
+    }
+
+    @Test("filters accounting rows to the rolling window before aggregation")
+    func filtersRowsByLastSeen() throws {
+        let hermesHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let databaseURL = hermesHome.appendingPathComponent("state.db")
+        try FileManager.default.createDirectory(
+            at: hermesHome,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: hermesHome) }
+
+        try runSQLite(
+            databaseURL: databaseURL,
+            sql: """
+            CREATE TABLE session_model_usage (
+              billing_provider TEXT,
+              model TEXT,
+              input_tokens INTEGER,
+              output_tokens INTEGER,
+              api_call_count INTEGER,
+              estimated_cost_usd REAL,
+              actual_cost_usd REAL,
+              last_seen REAL
+            );
+            INSERT INTO session_model_usage VALUES ('opencode-go','gpt-5',10,20,1,0.10,0,1000);
+            INSERT INTO session_model_usage VALUES ('opencode-go','gpt-5',30,40,2,0.20,0,-2590000);
+            INSERT INTO session_model_usage VALUES ('opencode-go','gpt-5',100,100,9,0.90,0,-2590001);
+            INSERT INTO session_model_usage VALUES ('opencode-go','gpt-5',50,50,4,0.40,0,2001);
+            INSERT INTO session_model_usage VALUES ('openai-codex','gpt-5',5,6,1,0.05,0,NULL);
+            """
+        )
+
+        let values = try HermesStateDBAccountingReader(hermesHome: hermesHome)
+            .read(window: AccountingWindow(endingAt: Date(timeIntervalSince1970: 2_000)))
+
+        #expect(values.count == 2)
+        let openCode = try #require(values.first { $0.subscription == .opencodeGo })
+        #expect(openCode.tokens?.input == 40)
+        #expect(openCode.tokens?.output == 60)
+        #expect(openCode.requests == 3)
+        let expectedCost = try #require(Decimal(string: "0.3"))
+        let actualCost = try #require(openCode.cost?.amount)
+        let tolerance = try #require(Decimal(string: "0.0001"))
+        #expect(abs(actualCost - expectedCost) < tolerance)
+        let chatGPT = try #require(values.first { $0.subscription == .chatGPT })
+        #expect(chatGPT.tokens?.total == 11)
+        #expect(chatGPT.requests == 1)
     }
 
     private func runSQLite(databaseURL: URL, sql: String) throws {

@@ -17,6 +17,8 @@ HermesUsageMonitor monitors quota windows observed through Hermes Agent.
 - **Reset countdown**: the provider-reported time remaining until a future quota-window `resetAt`, displayed as `Reset tra ...`; it reaches zero at the provider timestamp and never becomes negative or continues growing.
 - **Quota refresh transition**: the short-lived state after a reset countdown reaches zero while the app attempts to acquire a new live provider snapshot. It is not a quota value and does not establish a reset by itself.
 - **Unavailable reset**: the honest display state when the provider refresh fails; no countdown or locally estimated reset is shown.
+- **Accounting window**: the rolling 30×24-hour interval ending at the accounting refresh, applied identically to OpenCode Go and ChatGPT. A retained accounting row is included in full when its `last_seen` falls inside the window; rows are never prorated.
+- **Observed Hermes usage**: the token, request, model, and cost aggregate retained from Hermes and presented for the current accounting window. It describes the selected 30-day window, not the date Hermes was installed or downloaded.
 - **Aggregated reset notification**: simultaneous verified resets are grouped into one notification containing the provider and all reset windows.
 
 The app treats Hermes and provider quota data as read-only observations. Local token/request/cost accounting cannot establish an official quota reset.

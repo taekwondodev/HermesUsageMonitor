@@ -7,7 +7,7 @@ public struct HermesStateDBAccountingReader: LocalAccountingSource, Sendable {
         databaseURL = hermesHome.appendingPathComponent("state.db")
     }
 
-    public func read() throws -> [LocalAccounting] {
+    public func read(window: AccountingWindow) throws -> [LocalAccounting] {
         guard FileManager.default.fileExists(atPath: databaseURL.path) else {
             throw HermesAccountingReadError.sourceMissing
         }
@@ -22,6 +22,7 @@ public struct HermesStateDBAccountingReader: LocalAccountingSource, Sendable {
                SUM(actual_cost_usd) AS actualCost
         FROM session_model_usage
         WHERE billing_provider IS NOT NULL AND billing_provider != ''
+          AND (last_seen IS NULL OR (last_seen >= \(window.start.timeIntervalSince1970) AND last_seen <= \(window.end.timeIntervalSince1970)))
         GROUP BY billing_provider, model
         ORDER BY billing_provider, model;
         """

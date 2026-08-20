@@ -15,7 +15,8 @@ struct HermesAccountingReaderIntegrationTests {
         )
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let values = try HermesAccountingReader(fileURL: fileURL).read()
+        let values = try HermesAccountingReader(fileURL: fileURL)
+            .read(window: AccountingWindow(endingAt: Date(timeIntervalSince1970: 2_000)))
         #expect(values.count == 2)
         #expect(values[0].tokens?.total == 125)
         #expect(values[0].cost == nil)

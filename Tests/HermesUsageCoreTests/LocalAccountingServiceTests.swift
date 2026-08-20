@@ -34,6 +34,22 @@ struct LocalAccountingServiceTests {
         #expect(grouped[.opencodeGo] == nil)
     }
 
+    @Test("passes a thirty day window from its refresh clock to the source")
+    func passesAccountingWindowToSource() throws {
+        let expectedWindow = AccountingWindow(endingAt: Date(timeIntervalSince1970: 2_000))
+        let value = try LocalAccounting(subscription: .chatGPT, requests: 1)
+        let result = LocalAccountingService(
+            source: WindowAwareSource(expected: expectedWindow, values: [value]),
+            clock: { Date(timeIntervalSince1970: 2_000) }
+        ).readGroupedBySubscription()
+
+        guard case let .available(grouped) = result else {
+            Issue.record("Expected available accounting")
+            return
+        }
+        #expect(grouped[.chatGPT]?.count == 1)
+    }
+
     @Test("rejects negative accounting metrics")
     func rejectsNegativeMetrics() {
         #expect(throws: AccountingDomainError.invalidTokenCount) {
@@ -47,9 +63,18 @@ struct LocalAccountingServiceTests {
         }
     }
 
+    private struct WindowAwareSource: LocalAccountingSource {
+        let expected: AccountingWindow
+        let values: [LocalAccounting]
+
+        func read(window: AccountingWindow) throws -> [LocalAccounting] {
+            window == expected ? values : []
+        }
+    }
+
     private struct StubSource: LocalAccountingSource {
         let values: [LocalAccounting]
         init(_ values: [LocalAccounting]) { self.values = values }
-        func read() throws -> [LocalAccounting] { values }
+        func read(window: AccountingWindow) throws -> [LocalAccounting] { values }
     }
 }
