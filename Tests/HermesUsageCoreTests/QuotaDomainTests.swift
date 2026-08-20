@@ -36,7 +36,7 @@ struct QuotaDomainTests {
             usedPercent: 12
         )
         let snapshot = try QuotaSnapshot(
-            subscription: .nousPortal,
+            subscription: .chatGPT,
             capturedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 1_900_000_000)),
             windows: [window],
             source: try QuotaSource(identifier: "test-source")

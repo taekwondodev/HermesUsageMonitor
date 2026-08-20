@@ -17,7 +17,9 @@ struct ProfileQuotaRefreshServiceTests {
         #expect(live.availability == .live)
         #expect(live.updatedAt?.date == Date(timeIntervalSince1970: 500))
         #expect(offline.availability == .offline)
-        guard case let .snapshot(snapshot) = offline.subscriptions[0].result else {
+        guard case let .snapshot(snapshot) = offline.subscriptions.first(where: {
+            $0.subscription == .chatGPT
+        })?.result else {
             Issue.record("Expected the last snapshot to remain visible")
             return
         }
@@ -36,23 +38,23 @@ struct ProfileQuotaRefreshServiceTests {
 
         #expect(state.availability == .waiting)
         #expect(state.updatedAt == nil)
-        #expect(state.subscriptions.count == 3)
+        #expect(state.subscriptions.count == 2)
     }
 
     @Test("preserves the last snapshot for a partially unavailable subscription")
     func preservesPartialSnapshot() async throws {
         let source = SequenceSource(reads: [
-            [try observation(subscription: .nousPortal, usedPercent: 25),
+            [try observation(subscription: .chatGPT, usedPercent: 25),
              try observation(subscription: .opencodeGo, usedPercent: 40)],
-            [try observation(subscription: .nousPortal, usedPercent: 10)]
+            [try observation(subscription: .chatGPT, usedPercent: 10)]
         ])
         let service = ProfileQuotaRefreshService(source: source, clock: Date.init)
 
         _ = await service.refresh()
         let partial = await service.refresh()
 
-        guard case let .snapshot(nous) = partial.subscriptions.first(where: {
-            $0.subscription == .nousPortal
+        guard case let .snapshot(chatGPT) = partial.subscriptions.first(where: {
+            $0.subscription == .chatGPT
         })?.result,
         case let .snapshot(opencode) = partial.subscriptions.first(where: {
             $0.subscription == .opencodeGo
@@ -61,14 +63,14 @@ struct ProfileQuotaRefreshServiceTests {
             return
         }
 
-        #expect(nous.freshness == .live)
-        #expect(nous.windows[0].usedPercent == 10)
+        #expect(chatGPT.freshness == .live)
+        #expect(chatGPT.windows[0].usedPercent == 10)
         #expect(opencode.freshness == .stale)
         #expect(opencode.windows[0].usedPercent == 40)
     }
 
     private func observation(
-        subscription: Subscription = .nousPortal,
+        subscription: Subscription = .chatGPT,
         usedPercent: Double = 25
     ) throws -> ProfileQuotaObservation {
         let snapshot = try QuotaSnapshot(

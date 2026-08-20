@@ -68,8 +68,6 @@ public struct HermesStateDBAccountingReader: LocalAccountingSource, Sendable {
 
     private func subscription(for provider: String) -> Subscription? {
         switch provider.lowercased() {
-        case "nous", "nous-portal":
-            return .nousPortal
         case "openai-codex", "chatgpt":
             return .chatGPT
         case "opencode-go":

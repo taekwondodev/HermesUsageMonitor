@@ -128,9 +128,9 @@ struct HermesQuotaSnapshotReaderIntegrationTests {
             now: { Date(timeIntervalSince1970: 500) }
         ).read()
 
-        #expect(observations.count == 2)
-        #expect(observations.map(\.profile.value) == ["alpha", "beta"])
-        #expect(observations.map(\.subscription) == [.nousPortal, .chatGPT])
+        #expect(observations.count == 1)
+        #expect(observations.map(\.profile.value) == ["beta"])
+        #expect(observations.map(\.subscription) == [.chatGPT])
     }
 
     private func makeTemporarySnapshot(_ json: String) throws -> URL {

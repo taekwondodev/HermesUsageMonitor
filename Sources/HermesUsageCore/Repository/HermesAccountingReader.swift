@@ -47,9 +47,12 @@ public struct HermesAccountingReader: Sendable {
         }
 
         do {
-            return try payload.entries.map { entry in
-                try LocalAccounting(
-                    subscription: entry.subscription,
+            return try payload.entries.compactMap { entry in
+                guard let subscription = Subscription(rawValue: entry.subscription) else {
+                    return nil
+                }
+                return try LocalAccounting(
+                    subscription: subscription,
                     profile: entry.profile,
                     tokens: try entry.tokens.map {
                         try AccountingTokens(input: $0.input, output: $0.output)
@@ -75,7 +78,7 @@ private extension HermesAccountingReader {
     }
 
     struct Entry: Decodable {
-        let subscription: Subscription
+        let subscription: String
         let profile: String?
         let tokens: Tokens?
         let requests: Int?

@@ -31,36 +31,36 @@ struct HermesUsageMonitorAppTests {
     func subscriptionOrderNormalizes() {
         #expect(
             SubscriptionOrderStore.normalize([.chatGPT, .chatGPT]) ==
-                [.chatGPT, .nousPortal, .opencodeGo]
+                [.chatGPT, .opencodeGo]
         )
     }
 
     @Test("subscription order supports accessible move commands")
     func subscriptionOrderMovesItems() {
-        let order: [Subscription] = [.nousPortal, .opencodeGo, .chatGPT]
+        let order: [Subscription] = [.opencodeGo, .chatGPT]
         #expect(
             SubscriptionOrderStore.moved(order, item: .chatGPT, by: -1) ==
-                [.nousPortal, .chatGPT, .opencodeGo]
+                [.chatGPT, .opencodeGo]
         )
         #expect(
-            SubscriptionOrderStore.moved(order, item: .nousPortal, by: -1) == order
+            SubscriptionOrderStore.moved(order, item: .opencodeGo, by: -1) == order
         )
 
         #expect(
             SubscriptionOrderStore.moved(
-                [.chatGPT, .nousPortal, .opencodeGo],
-                visibleItems: [.chatGPT, .opencodeGo],
+                order,
+                visibleItems: order,
                 item: .opencodeGo,
-                by: -1
-            ) == [.opencodeGo, .chatGPT, .nousPortal]
+                by: 1
+            ) == [.chatGPT, .opencodeGo]
         )
         #expect(
             SubscriptionOrderStore.movedBefore(
                 order,
                 visibleItems: order,
                 item: .chatGPT,
-                target: .nousPortal
-            ) == [.chatGPT, .nousPortal, .opencodeGo]
+                target: .opencodeGo
+            ) == [.chatGPT, .opencodeGo]
         )
     }
 
@@ -73,8 +73,9 @@ struct HermesUsageMonitorAppTests {
 
         #expect(
             SubscriptionOrderStore.load(defaults: defaults) ==
-                [.chatGPT, .nousPortal, .opencodeGo]
+                [.chatGPT, .opencodeGo]
         )
+        #expect(defaults.array(forKey: "subscriptionOrder.v1") as? [String] == ["chatgpt", "opencode-go"])
     }
 
     @Test("notification adapter is disabled outside an app bundle")

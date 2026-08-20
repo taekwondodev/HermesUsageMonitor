@@ -15,7 +15,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 HERMES_HOME = pathlib.Path(os.environ.get("HERMES_HOME", pathlib.Path.home() / ".hermes")).expanduser()
 HERMES_ROOT = HERMES_HOME.parent.parent if HERMES_HOME.parent.name == "profiles" else HERMES_HOME
 REPORT_DIR = HERMES_ROOT / "update-safe"
-PROVIDERS = ("nous", "openai-codex", "opencode-go")
+PROVIDERS = ("openai-codex", "opencode-go")
 
 
 def run(command: list[str], *, env: dict[str, str] | None = None) -> tuple[int, str]:

@@ -387,7 +387,7 @@ private struct UsagePopoverView: View {
                 Text("AI Usage")
                     .font(.title3.weight(.semibold))
 
-                Text("3 abbonamenti")
+                Text("2 abbonamenti")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -637,8 +637,6 @@ private struct SubscriptionIdentityIcon: View {
 
     var body: some View {
         switch subscription {
-        case .nousPortal:
-            icon(ProviderAssetCatalog.nousPortal)
         case .opencodeGo:
             icon(ProviderAssetCatalog.opencodeGo)
         case .chatGPT:
@@ -675,11 +673,10 @@ private struct SubscriptionIdentityIcon: View {
 }
 
 enum ProviderAssetCatalog {
-    static let nousPortal = "NousPortalIcon"
     static let opencodeGo = "OpenCodeGoIcon"
     static let chatGPT = "ChatGPTIcon"
 
-    static let all = [nousPortal, opencodeGo, chatGPT]
+    static let all = [opencodeGo, chatGPT]
 
     static func image(named name: String) -> NSImage? {
         NSImage(named: name)
@@ -697,7 +694,11 @@ enum SubscriptionOrderStore {
 
     static func load(defaults: UserDefaults = .standard) -> [Subscription] {
         let rawValues = defaults.array(forKey: key) as? [String] ?? []
-        return normalize(rawValues.compactMap(Subscription.init(rawValue:)))
+        let normalized = normalize(rawValues.compactMap(Subscription.init(rawValue:)))
+        if rawValues != normalized.map(\.rawValue) {
+            defaults.set(normalized.map(\.rawValue), forKey: key)
+        }
+        return normalized
     }
 
     static func save(_ order: [Subscription], defaults: UserDefaults = .standard) {
@@ -791,8 +792,6 @@ private enum AccountingAvailability: Equatable {
 private extension Subscription {
     var displayName: String {
         switch self {
-        case .nousPortal:
-            return "Nous Portal"
         case .opencodeGo:
             return "OpenCode Go"
         case .chatGPT:
@@ -802,8 +801,6 @@ private extension Subscription {
 
     var symbol: String {
         switch self {
-        case .nousPortal:
-            return "globe.americas.fill"
         case .opencodeGo:
             return "chevron.left.forwardslash.chevron.right"
         case .chatGPT:

@@ -13,7 +13,7 @@ Maintaining both a generator and an asset catalog creates two visual sources of 
 
 Use `Media.xcassets` as the single source of truth for the Finder app icon and provider identity assets. The packaging script compiles the catalog with Apple tooling into the main `.app` bundle. The old SVG-to-`.icns` generator is removed.
 
-The provider images move into catalog image sets named `NousPortalIcon`, `OpenCodeGoIcon`, and `ChatGPTIcon`. The supplied 1024×1024 Hermes icon is used as the source for every required macOS App Icon representation so the design remains identical at all scales.
+The provider images use catalog image sets named `OpenCodeGoIcon` and `ChatGPTIcon`. The supplied 1024×1024 Hermes icon is used as the source for every required macOS App Icon representation so the design remains identical at all scales.
 
 Provider image sets use a single Universal appearance and preserve the supplied artwork. Raw duplicate image files and the old SVG generator are removed. If `actool` is unavailable, packaging fails rather than falling back to raw or generated assets.
 

@@ -3,7 +3,7 @@ import Testing
 @testable import HermesUsageCore
 
 struct HermesBridgeIntegrationTests {
-    @Test("decodes live Hermes usage output and preserves unavailable providers")
+    @Test("ignores unsupported providers and preserves supported unavailable providers")
     func decodesUsageCommandOutput() async throws {
         let fixture = Data(
             """
@@ -30,19 +30,12 @@ struct HermesBridgeIntegrationTests {
             fixtureOutput: fixture
         ).read()
 
-        #expect(observations.count == 2)
-        guard let nous = observations.first(where: { $0.subscription == .nousPortal }),
-              let chatGPT = observations.first(where: { $0.subscription == .chatGPT })
+        #expect(observations.count == 1)
+        guard let chatGPT = observations.first(where: { $0.subscription == .chatGPT })
         else {
-            Issue.record("Expected both commercial subscriptions")
+            Issue.record("Expected the supported ChatGPT observation")
             return
         }
-        guard case let .snapshot(snapshot) = nous.result else {
-            Issue.record("Expected Nous Portal quota snapshot")
-            return
-        }
-        #expect(snapshot.windows[0].kind == .monthly)
-        #expect(snapshot.windows[0].usedPercent == 83)
         #expect(chatGPT.result == .unavailable(.authenticationFailed))
     }
 
@@ -102,16 +95,7 @@ struct HermesBridgeIntegrationTests {
 
         let values = try HermesStateDBAccountingReader(hermesHome: hermesHome)
             .read()
-        let value = try #require(values.first)
-
-        #expect(value.subscription == .nousPortal)
-        #expect(value.tokens?.total == 125)
-        #expect(value.requests == 2)
-        let expectedCost = try #require(Decimal(string: "0.12"))
-        let actualCost = try #require(value.cost?.amount)
-        let tolerance = try #require(Decimal(string: "0.0001"))
-        #expect(abs(actualCost - expectedCost) < tolerance)
-        #expect(value.models == ["openai/gpt-5.6-luna"])
+        #expect(values.isEmpty)
     }
 
     @Test("reads a state.db that uses WAL journal mode")
@@ -146,10 +130,7 @@ struct HermesBridgeIntegrationTests {
 
         let values = try HermesStateDBAccountingReader(hermesHome: hermesHome)
             .read()
-        let value = try #require(values.first)
-
-        #expect(value.subscription == .nousPortal)
-        #expect(value.requests == 2)
+        #expect(values.isEmpty)
     }
 
     private func runSQLite(databaseURL: URL, sql: String) throws {

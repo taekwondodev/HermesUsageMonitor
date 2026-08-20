@@ -57,8 +57,6 @@ private extension QuotaResetNotification {
 private extension Subscription {
     var displayName: String {
         switch self {
-        case .nousPortal:
-            return "Nous Portal"
         case .opencodeGo:
             return "OpenCode Go"
         case .chatGPT:

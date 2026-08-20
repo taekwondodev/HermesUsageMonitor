@@ -14,7 +14,7 @@ struct QuotaResetNotificationServiceTests {
         let notifications = await notifier.notifications
         #expect(notifications.count == 1)
         #expect(notifications[0].events.count == 1)
-        #expect(notifications[0].events[0].subscription == .nousPortal)
+        #expect(notifications[0].events[0].subscription == .chatGPT)
         #expect(notifications[0].events[0].windowKind == .rollingFiveHours)
     }
 
@@ -41,9 +41,9 @@ struct QuotaResetNotificationServiceTests {
         let notifications = await notifier.notifications
         #expect(notifications.count == 1)
         #expect(notifications[0].events == [
-            QuotaResetEvent(subscription: .nousPortal, windowKind: .rollingFiveHours, windowLabel: "5 hours"),
-            QuotaResetEvent(subscription: .nousPortal, windowKind: .weekly, windowLabel: "Weekly"),
-            QuotaResetEvent(subscription: .nousPortal, windowKind: .monthly, windowLabel: "Monthly")
+            QuotaResetEvent(subscription: .chatGPT, windowKind: .rollingFiveHours, windowLabel: "5 hours"),
+            QuotaResetEvent(subscription: .chatGPT, windowKind: .weekly, windowLabel: "Weekly"),
+            QuotaResetEvent(subscription: .chatGPT, windowKind: .monthly, windowLabel: "Monthly")
         ])
     }
 
@@ -146,7 +146,7 @@ struct QuotaResetNotificationServiceTests {
         )]
         return SubscriptionRefreshState(
             subscriptions: [SubscriptionQuota(
-                subscription: .nousPortal,
+                subscription: .chatGPT,
                 result: .snapshot(try snapshot(windows: windows))
             )],
             availability: .live,
@@ -156,7 +156,7 @@ struct QuotaResetNotificationServiceTests {
 
     private func staleSubscription(usedPercent: Double, resetAt: TimeInterval) throws -> SubscriptionQuota {
         SubscriptionQuota(
-            subscription: .nousPortal,
+            subscription: .chatGPT,
             result: .snapshot(try snapshot(windows: [
                 try window(kind: .rollingFiveHours, label: "5 hours", usedPercent: usedPercent, resetAt: resetAt)
             ]).withFreshness(.stale))
@@ -165,7 +165,7 @@ struct QuotaResetNotificationServiceTests {
 
     private func snapshot(windows: [QuotaWindow]) throws -> QuotaSnapshot {
         try QuotaSnapshot(
-            subscription: .nousPortal,
+            subscription: .chatGPT,
             capturedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 1_000)),
             freshness: .live,
             windows: windows,

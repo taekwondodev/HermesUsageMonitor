@@ -168,10 +168,10 @@ private extension HermesUsageCommandReader {
         let commandMissing = resolvedExecutable == nil
         if let executable = resolvedExecutable {
             process.executableURL = executable
-            process.arguments = ["usage", "--json", "--provider", "nous", "--provider", "openai-codex", "--provider", "opencode-go"]
+            process.arguments = ["usage", "--json", "--provider", "openai-codex", "--provider", "opencode-go"]
         } else {
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = ["hermes", "usage", "--json", "--provider", "nous", "--provider", "openai-codex", "--provider", "opencode-go"]
+            process.arguments = ["hermes", "usage", "--json", "--provider", "openai-codex", "--provider", "opencode-go"]
         }
         var environment = ProcessInfo.processInfo.environment
         environment["HERMES_HOME"] = hermesCommandHome.path

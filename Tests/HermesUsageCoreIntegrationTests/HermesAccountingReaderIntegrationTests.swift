@@ -41,8 +41,7 @@ struct HermesAccountingReaderIntegrationTests {
             Issue.record("Expected available accounting")
             return
         }
-        #expect(grouped[.nousPortal]?.first?.profile == "one")
-        #expect(grouped[.nousPortal]?.first?.cost?.currency == "USD")
+        #expect(grouped[.chatGPT] == nil)
         #expect(grouped[.opencodeGo]?.first?.profile == "two")
         #expect(grouped[.opencodeGo]?.first?.tokens?.output == nil)
     }

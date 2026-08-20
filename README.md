@@ -9,7 +9,7 @@ This repository contains the initial SwiftUI menu bar scaffold:
 - macOS 26+
 - menu bar-only app using `MenuBarExtra`
 - fixed app icon
-- three subscription groups: Nous Portal, OpenCode Go, and ChatGPT
+- two subscription groups: OpenCode Go and ChatGPT
 - quota/accounting UI backed by Hermes Agent's live usage bridge
 
 The app is intentionally read-only. Hermes integration, quota snapshots, profile aggregation, and reset notifications will be implemented from the approved product specification.
@@ -18,7 +18,7 @@ The app is intentionally read-only. Hermes integration, quota snapshots, profile
 
 Quota data is read from the machine-readable `hermes usage --json` command, which reuses Hermes Agent's existing authentication and provider/account-usage code. The app never stores provider credentials and never asks the providers to authenticate separately.
 
-Hermes local accounting is read read-only from the profile's `state.db` via SQLite. The app maps technical providers such as `nous` and `openai-codex` to commercial subscriptions and keeps unknown or unavailable sources explicit. It never derives a quota percentage from historical token usage.
+Hermes local accounting is read read-only from the profile's `state.db` via SQLite. The app maps supported technical providers such as `openai-codex` and `opencode-go` to commercial subscriptions and ignores unsupported sources. It never derives a quota percentage from historical token usage.
 
 ## Open in Xcode
 
