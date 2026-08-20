@@ -469,10 +469,6 @@ private struct SubscriptionCard: View {
 
                         Spacer()
 
-                        Text("30 giorni")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-
                         if case .unavailable = accountingAvailability {
                             Text("Non disponibile")
                                 .font(.caption2)
