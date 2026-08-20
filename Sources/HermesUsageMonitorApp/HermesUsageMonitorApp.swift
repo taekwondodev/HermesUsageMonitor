@@ -477,7 +477,7 @@ private struct SubscriptionCard: View {
     @ViewBuilder
     private func snapshotContent(_ snapshot: QuotaSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(snapshot.windows.sorted(by: isHigherRisk), id: \.kind) { window in
+            ForEach(displayedWindows(from: snapshot), id: \.kind) { window in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(window.label)
@@ -538,6 +538,13 @@ private struct SubscriptionCard: View {
         }
     }
 
+    private func displayedWindows(from snapshot: QuotaSnapshot) -> [QuotaWindow] {
+        QuotaWindowDisplayOrder.windows(
+            for: subscription.subscription,
+            windows: snapshot.windows
+        )
+    }
+
     private func unavailableContent(_ reason: QuotaUnavailableReason) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Quota non disponibile")
@@ -570,12 +577,6 @@ private struct SubscriptionCard: View {
         return "tra \(days) g"
     }
 
-    private func isHigherRisk(_ lhs: QuotaWindow, _ rhs: QuotaWindow) -> Bool {
-        if lhs.usedPercent != rhs.usedPercent {
-            return lhs.usedPercent > rhs.usedPercent
-        }
-        return (lhs.resetAt?.at.date ?? .distantFuture) < (rhs.resetAt?.at.date ?? .distantFuture)
-    }
 
     private func color(for window: QuotaWindow, freshness: QuotaFreshness) -> Color {
         guard freshness != .stale else { return .gray }
