@@ -458,14 +458,27 @@ private struct SubscriptionCard: View {
                     isExpanded: $isAccountingExpanded
                 ) {
                     AccountingSection(
-                        accounting: accounting,
-                        accountingAvailability: accountingAvailability
+                        accounting: accounting
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    Label("Uso osservato da Hermes", systemImage: "umbrella.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Label("Uso osservato da Hermes", systemImage: "umbrella.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Text("30 giorni")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        if case .unavailable = accountingAvailability {
+                            Text("Non disponibile")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -599,25 +612,40 @@ private struct SubscriptionCard: View {
 
 private struct AccountingSection: View {
     let accounting: [LocalAccounting]
-    let accountingAvailability: AccountingAvailability
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            if !accounting.isEmpty {
-                ForEach(Array(accounting.enumerated()), id: \.offset) { _, item in
-                    AccountingDetail(item: item)
-                }
-            } else if case let .unavailable(reason) = accountingAvailability {
-                Text("Contabilità locale non disponibile")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(reason)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            ForEach(AccountingDisplayBlock.blocks(from: accounting)) { block in
+                AccountingDetail(block: block)
+                    .padding(.horizontal, 8)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
             }
         }
-        .padding(8)
-        .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct AccountingDisplayBlock: Equatable, Identifiable {
+    let id: String
+    let modelLabel: String
+    let requestsLabel: String
+    let inputLabel: String
+    let outputLabel: String
+    let costLabel: String
+
+    static func blocks(from items: [LocalAccounting]) -> [AccountingDisplayBlock] {
+        items.enumerated().map { itemIndex, item in
+            AccountingDisplayBlock(
+                id: "\(itemIndex)",
+                modelLabel: item.models.isEmpty
+                    ? "Modello non disponibile"
+                    : item.models.joined(separator: ", "),
+                requestsLabel: item.requests.map { "\($0) richieste" } ?? "Non disponibile",
+                inputLabel: item.tokens?.input.map(String.init) ?? "Non disponibile",
+                outputLabel: item.tokens?.output.map(String.init) ?? "Non disponibile",
+                costLabel: item.cost.map { "\($0.amount.description) \($0.currency)" } ?? "Non disponibile"
+            )
+        }
     }
 }
 
@@ -693,8 +721,8 @@ enum ProviderAssetCatalog {
 
 enum PopoverLayout {
     static let minimumHeight: CGFloat = 500
-    static let idealHeight: CGFloat = 500
-    static let maximumHeight: CGFloat = 640
+    static let idealHeight: CGFloat = 560
+    static let maximumHeight: CGFloat = 700
 }
 
 enum SubscriptionOrderStore {
@@ -759,35 +787,42 @@ enum SubscriptionOrderStore {
 }
 
 private struct AccountingDetail: View {
-    let item: LocalAccounting
+    let block: AccountingDisplayBlock
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if let tokens = item.tokens {
-                HStack(spacing: 4) {
-                    if let input = tokens.input { Text("Input: \(input)") }
-                    if let output = tokens.output { Text("Output: \(output)") }
-                }
-                .font(.caption2)
-            }
-            if let requests = item.requests {
-                Text("Richieste: \(requests)")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(block.modelLabel)
+                    .font(.caption.weight(.semibold))
+
+                Spacer()
+
+                Text(block.requestsLabel)
                     .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            if !item.models.isEmpty {
-                Text("Modelli: \(item.models.joined(separator: ", "))")
-                    .font(.caption2)
+
+            Divider()
+
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                metric("Input", value: block.inputLabel)
+                metric("Output", value: block.outputLabel)
+                metric("Costo", value: block.costLabel)
             }
-            if let cost = item.cost {
-                Text("Costo: \(cost.amount.description) \(cost.currency)")
-                    .font(.caption2)
-            }
-            if let provider = item.provider {
-                Text(provider)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
+            .font(.caption2)
         }
+        .padding(.vertical, 6)
+    }
+
+    private func metric(_ label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .fontWeight(.semibold)
+        }
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
     }
 }
 

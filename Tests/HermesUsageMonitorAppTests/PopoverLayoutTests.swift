@@ -7,9 +7,48 @@ struct HermesUsageMonitorAppTests {
     @Test("popover keeps a usable height while remaining bounded")
     func popoverHeightContract() {
         #expect(PopoverLayout.minimumHeight == 500)
-        #expect(PopoverLayout.idealHeight == PopoverLayout.minimumHeight)
-        #expect(PopoverLayout.maximumHeight == 640)
+        #expect(PopoverLayout.idealHeight == 560)
+        #expect(PopoverLayout.maximumHeight == 700)
         #expect(PopoverLayout.minimumHeight <= PopoverLayout.maximumHeight)
+    }
+
+    @Test("accounting display blocks preserve model metrics and missing values")
+    func accountingDisplayBlocksPreserveModelMetrics() throws {
+        let items = try [
+            LocalAccounting(
+                subscription: .opencodeGo,
+                tokens: try AccountingTokens(input: 2_799_260, output: 553_512),
+                requests: 450,
+                models: ["deepseek-v4-flash"],
+                cost: try AccountingCost(amount: 0, currency: "USD")
+            ),
+            LocalAccounting(
+                subscription: .opencodeGo,
+                requests: 8,
+                models: ["mimo-v2.5", "gpt-5-mini"]
+            )
+        ]
+
+        #expect(
+            AccountingDisplayBlock.blocks(from: items) == [
+                AccountingDisplayBlock(
+                    id: "0",
+                    modelLabel: "deepseek-v4-flash",
+                    requestsLabel: "450 richieste",
+                    inputLabel: "2799260",
+                    outputLabel: "553512",
+                    costLabel: "0 USD"
+                ),
+                AccountingDisplayBlock(
+                    id: "1",
+                    modelLabel: "mimo-v2.5, gpt-5-mini",
+                    requestsLabel: "8 richieste",
+                    inputLabel: "Non disponibile",
+                    outputLabel: "Non disponibile",
+                    costLabel: "Non disponibile"
+                )
+            ]
+        )
     }
 
     @Test("provider identity assets are present in the executable bundle")
