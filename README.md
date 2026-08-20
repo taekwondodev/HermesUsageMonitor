@@ -16,7 +16,9 @@ The app is intentionally read-only. Hermes integration, quota snapshots, profile
 
 ## Hermes data bridge
 
-Quota data is read from the machine-readable `hermes usage --json` command, which reuses Hermes Agent's existing authentication and provider/account-usage code. The app never stores provider credentials and never asks the providers to authenticate separately.
+Quota data is read through the app-bundled `hermes-usage-bridge` launcher. The launcher uses the existing Hermes virtual environment and Hermes Agent authentication: ChatGPT/OpenAI Codex is read through the upstream usage API and OpenCode Go through its usage endpoint. HermesUsageMonitor never stores provider credentials and never asks providers to authenticate separately.
+
+The launcher and bridge resource are installed inside the app bundle by `scripts/build-app.sh`; Hermes Desktop does not need to be open.
 
 Hermes local accounting is read read-only from the profile's `state.db` via SQLite. The app maps supported technical providers such as `openai-codex` and `opencode-go` to commercial subscriptions and ignores unsupported sources. It never derives a quota percentage from historical token usage.
 

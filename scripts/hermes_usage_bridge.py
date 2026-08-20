@@ -9,6 +9,7 @@ import importlib
 import json
 import math
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -24,6 +25,7 @@ PROVIDERS = (
     ("opencode-go", "opencode-go"),
 )
 TIMEOUT_SECONDS = 15.0
+_ACTIVE_WORKERS: list[Any] = []
 
 
 class BridgeError(Exception):
@@ -319,19 +321,36 @@ def collect(root: Path) -> dict[str, Any]:
     results: list[ProviderResult] = []
     deadline = time.monotonic() + TIMEOUT_SECONDS
     workers: list[tuple[str, str, Any]] = []
-    for provider, subscription in PROVIDERS:
-        try:
-            workers.append((provider, subscription, start_worker(provider, root)))
-        except OSError:
-            results.append(unavailable(provider, subscription, "provider worker failed"))
-    for provider, subscription, worker in workers:
-        results.append(await_worker(provider, subscription, worker, deadline))
+    try:
+        for provider, subscription in PROVIDERS:
+            try:
+                worker = start_worker(provider, root)
+                workers.append((provider, subscription, worker))
+                _ACTIVE_WORKERS.append(worker)
+            except OSError:
+                results.append(unavailable(provider, subscription, "provider worker failed"))
+        for provider, subscription, worker in workers:
+            results.append(await_worker(provider, subscription, worker, deadline))
+    finally:
+        for _provider, _subscription, worker in workers:
+            if worker in _ACTIVE_WORKERS:
+                _ACTIVE_WORKERS.remove(worker)
+            if worker.poll() is None:
+                worker.kill()
+                worker.communicate()
     results.sort(key=lambda result: next(index for index, item in enumerate(PROVIDERS) if item[0] == result.provider))
     return {
         "version": VERSION,
         "generatedAt": isoformat(utc_now()),
         "providers": {result.provider: result.payload for result in results},
     }
+
+
+def terminate_workers(_signum: int, _frame: Any) -> None:
+    for worker in list(_ACTIVE_WORKERS):
+        if worker.poll() is None:
+            worker.kill()
+    raise SystemExit(143)
 
 
 def parse_args() -> argparse.Namespace:
@@ -347,6 +366,8 @@ def main() -> int:
     if not args.json:
         print("usage: hermes-usage-bridge --json", file=sys.stderr)
         return 2
+    signal.signal(signal.SIGTERM, terminate_workers)
+    signal.signal(signal.SIGINT, terminate_workers)
     try:
         root = resolve_hermes_root(args.hermes_root)
         if args.worker:

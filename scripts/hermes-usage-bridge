@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+RESOURCE="$SCRIPT_DIR/../Resources/hermes_usage_bridge.py"
+HERMES_HOME_VALUE=${HERMES_HOME:-"$HOME/.hermes"}
+
+if [ -n "${HERMES_AGENT_ROOT:-}" ]; then
+    HERMES_ROOT=$HERMES_AGENT_ROOT
+elif [ -f "$HERMES_HOME_VALUE/hermes-agent/agent/account_usage.py" ]; then
+    HERMES_ROOT="$HERMES_HOME_VALUE/hermes-agent"
+elif [ -f "$HOME/.hermes/hermes-agent/agent/account_usage.py" ]; then
+    HERMES_ROOT="$HOME/.hermes/hermes-agent"
+else
+    printf '%s\n' 'Hermes official checkout not found' >&2
+    exit 4
+fi
+
+if [ -x "$HERMES_ROOT/venv/bin/python" ]; then
+    PYTHON="$HERMES_ROOT/venv/bin/python"
+elif [ -x "$HERMES_ROOT/venv/bin/python3" ]; then
+    PYTHON="$HERMES_ROOT/venv/bin/python3"
+else
+    printf '%s\n' 'Hermes official venv not found' >&2
+    exit 4
+fi
+
+if [ ! -f "$RESOURCE" ]; then
+    printf '%s\n' 'Hermes usage bridge resource not found' >&2
+    exit 4
+fi
+
+exec "$PYTHON" "$RESOURCE" --json --hermes-root "$HERMES_ROOT"

@@ -3,6 +3,37 @@ import Testing
 @testable import HermesUsageCore
 
 struct HermesBridgeIntegrationTests {
+    @Test("invokes the installed bridge launcher with the JSON contract")
+    func invokesBridgeLauncher() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let launcher = root.appendingPathComponent("hermes-usage-bridge")
+        let fixture = """
+        {"version":1,"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"Session","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"}]}}}
+        """
+        try "#!/bin/sh\n[ \"$1\" = \"--json\" ] || exit 2\nprintf '%s' '\(fixture)'\n".write(
+            to: launcher,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+
+        let observations = await HermesUsageCommandReader(
+            hermesHome: root,
+            executable: launcher
+        ).read()
+
+        let chatGPT = try #require(observations.first { $0.subscription == .chatGPT })
+        guard case let .snapshot(snapshot) = chatGPT.result else {
+            Issue.record("Expected a live snapshot from the bridge launcher")
+            return
+        }
+        #expect(snapshot.windows.first?.usedPercent == 40.0)
+    }
+
     @Test("ignores unsupported providers and preserves supported unavailable providers")
     func decodesUsageCommandOutput() async throws {
         let fixture = Data(

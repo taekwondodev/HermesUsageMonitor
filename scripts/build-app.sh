@@ -21,7 +21,8 @@ STAGE_APP="${STAGE_ROOT}/${APP_NAME}.app"
 CONTENTS="${STAGE_APP}/Contents"
 MACOS="${CONTENTS}/MacOS"
 RESOURCES="${CONTENTS}/Resources"
-mkdir -p "${MACOS}" "${RESOURCES}"
+HELPERS="${CONTENTS}/Helpers"
+mkdir -p "${MACOS}" "${RESOURCES}" "${HELPERS}"
 
 printf 'Building release executable…\n'
 (cd "${PROJECT_ROOT}" && swift build -c release --product "${APP_NAME}")
@@ -35,6 +36,9 @@ RESOURCE_BUNDLE="${BIN_PATH}/${APP_NAME}_HermesUsageMonitorApp.bundle"
 cp "${EXECUTABLE}" "${MACOS}/${APP_NAME}"
 cp -R "${RESOURCE_BUNDLE}" "${RESOURCES}/"
 cp "${PROJECT_ROOT}/scripts/Info.plist" "${CONTENTS}/Info.plist"
+cp "${PROJECT_ROOT}/scripts/hermes_usage_bridge.py" "${RESOURCES}/hermes_usage_bridge.py"
+cp "${PROJECT_ROOT}/scripts/hermes-usage-bridge" "${HELPERS}/hermes-usage-bridge"
+chmod 755 "${HELPERS}/hermes-usage-bridge"
 
 printf 'Generating Finder icon…\n'
 ASSET_CATALOG="${PROJECT_ROOT}/Sources/HermesUsageMonitorApp/Resources/Media.xcassets"

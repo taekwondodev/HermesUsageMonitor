@@ -164,15 +164,11 @@ private extension HermesUsageCommandReader {
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
 
-        let resolvedExecutable = executable ?? discoverHermesExecutable()
-        let commandMissing = resolvedExecutable == nil
-        if let executable = resolvedExecutable {
-            process.executableURL = executable
-            process.arguments = ["usage", "--json", "--provider", "openai-codex", "--provider", "opencode-go"]
-        } else {
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = ["hermes", "usage", "--json", "--provider", "openai-codex", "--provider", "opencode-go"]
+        guard let resolvedExecutable = executable ?? discoverBridgeExecutable() else {
+            return .failure(.commandMissing)
         }
+        process.executableURL = resolvedExecutable
+        process.arguments = ["--json"]
         var environment = ProcessInfo.processInfo.environment
         environment["HERMES_HOME"] = hermesCommandHome.path
         process.environment = environment
@@ -183,6 +179,7 @@ private extension HermesUsageCommandReader {
             while process.isRunning {
                 guard Date() < deadline else {
                     process.terminate()
+                    process.waitUntilExit()
                     return .failure(.endpointUnavailable)
                 }
                 Thread.sleep(forTimeInterval: 0.05)
@@ -190,25 +187,18 @@ private extension HermesUsageCommandReader {
         } catch {
             return .failure(.commandMissing)
         }
-        guard process.terminationStatus == 0 else {
-            return .failure(commandMissing ? .commandMissing : .endpointUnavailable)
-        }
+        guard process.terminationStatus == 0 else { return .failure(.endpointUnavailable) }
         return .success(output.fileHandleForReading.readDataToEndOfFile())
     }
 
-    func discoverHermesExecutable() -> URL? {
+    func discoverBridgeExecutable() -> URL? {
+        let environment = ProcessInfo.processInfo.environment
         let configuredCandidates = [
-            hermesHome.appendingPathComponent("hermes-agent/venv/bin/hermes"),
-            hermesHome
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("hermes-agent/venv/bin/hermes")
-        ]
-        let pathCandidates = (ProcessInfo.processInfo.environment["PATH"] ?? "")
-            .split(separator: ":")
-            .map { URL(fileURLWithPath: String($0)).appendingPathComponent("hermes") }
-        let candidates = configuredCandidates + pathCandidates
-        return candidates.first {
+            environment["HERMES_USAGE_BRIDGE"].map(URL.init(fileURLWithPath:)),
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hermes-usage-bridge"),
+            hermesHome.appendingPathComponent("hermes-usage-bridge"),
+        ].compactMap { $0 }
+        return configuredCandidates.first {
             FileManager.default.isExecutableFile(atPath: $0.path)
         }
     }
