@@ -14,6 +14,9 @@ HermesUsageMonitor monitors quota windows observed through Hermes Agent.
 - **Retroactive reset**: a reset that occurred while the app was not running. It does not generate a notification on restart; the first live snapshot establishes the new baseline.
 - **Unverifiable reset**: a window without a provider reset timestamp or another explicit reset signal. It does not generate a notification.
 - **Reset notification transition**: `previous.usedPercent > 0` and `current.usedPercent == 0` and `current.resetAt > previous.resetAt`. A `0% → 0%` observation never notifies.
+- **Reset countdown**: the provider-reported time remaining until a future quota-window `resetAt`, displayed as `Reset tra ...`; it reaches zero at the provider timestamp and never becomes negative or continues growing.
+- **Quota refresh transition**: the short-lived state after a reset countdown reaches zero while the app attempts to acquire a new live provider snapshot. It is not a quota value and does not establish a reset by itself.
+- **Unavailable reset**: the honest display state when the provider refresh fails; no countdown or locally estimated reset is shown.
 - **Aggregated reset notification**: simultaneous verified resets are grouped into one notification containing the provider and all reset windows.
 
 The app treats Hermes and provider quota data as read-only observations. Local token/request/cost accounting cannot establish an official quota reset.

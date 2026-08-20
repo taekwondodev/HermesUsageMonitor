@@ -507,10 +507,10 @@ private struct SubscriptionCard: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         } else {
-                            Text("Reset \(resetAt, format: .dateTime.hour().minute()) · \(countdownLabel(until: resetAt))")
+                            Text("Reset \(countdownLabel(until: resetAt))")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                                .accessibilityLabel("Reset alle \(resetAt, format: .dateTime.hour().minute())")
+                                .accessibilityLabel("Reset")
                                 .accessibilityValue(countdownLabel(until: resetAt))
                         }
                     } else {
