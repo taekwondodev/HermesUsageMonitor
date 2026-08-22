@@ -99,9 +99,20 @@ struct ManualResetDisplayModel: Equatable {
 
 struct ManualResetSection: View {
     let state: ManualResetRefreshState
+    let flow: ManualResetRedemptionFlowState
+    let canRedeem: Bool
+    let onRedeem: () -> Void
+    let onConfirmRedeem: () -> Void
+    let onRetryRedeem: () -> Void
+    let onDismiss: () -> Void
 
     private var model: ManualResetDisplayModel {
         ManualResetDisplayModel(state: state)
+    }
+
+    private var expectedRemainingCount: Int? {
+        guard case let .live(summary) = state else { return nil }
+        return max(0, summary.availableCount - 1)
     }
 
     var body: some View {
@@ -122,14 +133,24 @@ struct ManualResetSection: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+
+                    if flow == .success {
+                        Text("Reset riscattato")
+                            .font(.caption2)
+                            .foregroundStyle(ManualResetDesignToken.redeemTint)
+                    } else if flow == .unverified && !flow.isIdle {
+                        Text("Esito non confermato")
+                            .font(.caption2)
+                            .foregroundStyle(Color.orange)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button("Riscatta") {}
+                Button("Riscatta", action: onRedeem)
                     .font(.caption.weight(.semibold))
                     .buttonStyle(.borderedProminent)
                     .tint(ManualResetDesignToken.redeemTint)
-                    .disabled(!model.isRedeemEnabled)
+                    .disabled(!canRedeem)
                     .accessibilityHint("Riscatta il Full reset disponibile")
             }
 
@@ -149,5 +170,57 @@ struct ManualResetSection: View {
         )
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+        .confirmationDialog(
+            "Riscattare un Full reset?",
+            isPresented: Binding(
+                get: { flow == .confirming },
+                set: { if !$0 { onDismiss() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Riscatta") { onConfirmRedeem() }
+            Button("Annulla", role: .cancel) { onDismiss() }
+        } message: {
+            Text(confirmationMessage)
+        }
+        .alert(
+            "Esito riscatto non confermato",
+            isPresented: Binding(
+                get: { flow == .unverified && !flow.isRedeeming },
+                set: { if !$0 { onDismiss() } }
+            )
+        ) {
+            Button("Riprova") { onRetryRedeem() }
+            Button("Chiudi", role: .cancel, action: onDismiss)
+        } message: {
+            Text("Il provider non conferma se il reset è stato consumato. Un nuovo riscatto è bloccato finché lo stato non viene rinfrescato.")
+        }
+        .alert(
+            rejectedTitle,
+            isPresented: Binding(
+                get: { flow.showsRejected && !flow.isRedeeming },
+                set: { if !$0 { onDismiss() } }
+            )
+        ) {
+            Button("Chiudi", role: .cancel, action: onDismiss)
+        } message: {
+            Text(rejectedMessage)
+        }
+    }
+
+    private var rejectedTitle: String {
+        flow == .notConsumed ? "Riscatto non effettuato" : "Riscatto non riuscito"
+    }
+
+    private var rejectedMessage: String {
+        flow == .notConsumed
+            ? "Il provider non ha consumato il reset: non c'era un reset da applicare. Nessun credit è stato speso."
+            : "Il riscatto non è andato a buon fine. Nessun credit è stato speso."
+    }
+
+    private var confirmationMessage: String {
+        let remaining = expectedRemainingCount.map { "Rimarranno \($0) disponibili." } ??
+            "Un Full reset verrà consumato."
+        return "Verrà consumato un Full reset. \(remaining)"
     }
 }

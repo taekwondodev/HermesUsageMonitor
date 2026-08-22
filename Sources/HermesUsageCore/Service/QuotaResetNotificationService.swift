@@ -12,19 +12,24 @@ public actor QuotaResetNotificationService {
         self.notifier = notifier
     }
 
-    public func process(_ state: SubscriptionRefreshState) async {
+    public func process(
+        _ state: SubscriptionRefreshState,
+        suppressing: Bool = false
+    ) async {
         guard state.availability == .live else { return }
 
         guard let previousLiveSubscriptions else {
             self.previousLiveSubscriptions = state.subscriptions
             return
         }
+        self.previousLiveSubscriptions = state.subscriptions
+
+        guard !suppressing else { return }
 
         let events = QuotaResetDetector.detect(
             previous: previousLiveSubscriptions,
             current: state.subscriptions
         )
-        self.previousLiveSubscriptions = state.subscriptions
 
         guard !events.isEmpty else { return }
         await notifier.notify(QuotaResetNotification(events: events))

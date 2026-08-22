@@ -201,6 +201,144 @@ class HermesUsageBridgeTests(unittest.TestCase):
         )
         self.assertEqual(result.payload["reason"], "provider returned malformed data")
 
+    def test_redeem_maps_provider_outcomes(self):
+        for code, expected in {
+            "reset": "reset",
+            "already_redeemed": "already_redeemed",
+            "nothing_to_reset": "nothing_to_reset",
+            "no_credit": "no_credit",
+            "mystery": "unverified",
+        }.items():
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "agent").mkdir()
+                (root / "hermes_cli").mkdir()
+                (root / "agent" / "__init__.py").write_text("")
+                (root / "hermes_cli" / "__init__.py").write_text("")
+                (root / "agent" / "account_usage.py").write_text(textwrap.dedent("""
+                    def fetch_account_usage(_provider):
+                        return None
+
+                    def _resolve_codex_usage_credentials(*_args):
+                        return ("test-token", "https://example.invalid", "test-account")
+
+                    def _codex_backend_urls(_base):
+                        return ("usage", "credits", "consume")
+                """))
+                (root / "hermes_cli" / "runtime_provider.py").write_text(textwrap.dedent("""
+                    def resolve_runtime_provider(**_kwargs):
+                        return {}
+                """))
+                (root / "httpx.py").write_text(textwrap.dedent("""
+                    CODE = {"code": __CODE__}
+
+                    class Response:
+                        def raise_for_status(self):
+                            pass
+
+                        def json(self):
+                            return CODE
+
+                    class Client:
+                        def __init__(self, **_kwargs):
+                            pass
+
+                        def __enter__(self):
+                            return self
+
+                        def __exit__(self, *_args):
+                            pass
+
+                        def post(self, _url, **_kwargs):
+                            return Response()
+                """).replace("__CODE__", json.dumps(code)))
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        str(SCRIPT),
+                        "--redeem",
+                        "--request-id",
+                        "00000000-0000-0000-0000-000000000000",
+                        "--hermes-root",
+                        str(root),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                payload = json.loads(completed.stdout)
+                self.assertEqual(payload["status"], expected)
+
+    def test_redeem_requires_request_id(self):
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT), "--redeem"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 2)
+
+    def test_redeem_maps_http_status_error_to_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "agent").mkdir()
+            (root / "hermes_cli").mkdir()
+            (root / "agent" / "__init__.py").write_text("")
+            (root / "hermes_cli" / "__init__.py").write_text("")
+            (root / "agent" / "account_usage.py").write_text(textwrap.dedent("""
+                def fetch_account_usage(_provider):
+                    return None
+
+                def _resolve_codex_usage_credentials(*_args):
+                    return ("test-token", "https://example.invalid", "test-account")
+
+                def _codex_backend_urls(_base):
+                    return ("usage", "credits", "consume")
+            """))
+            (root / "hermes_cli" / "runtime_provider.py").write_text(textwrap.dedent("""
+                def resolve_runtime_provider(**_kwargs):
+                    return {}
+            """))
+            (root / "httpx.py").write_text(textwrap.dedent("""
+                class HTTPStatusError(Exception):
+                    pass
+
+                class Response:
+                    def json(self):
+                        return {}
+
+                class Client:
+                    def __init__(self, **_kwargs):
+                        pass
+
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, *_args):
+                        pass
+
+                    def post(self, _url, **_kwargs):
+                        raise HTTPStatusError("401")
+            """))
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--redeem",
+                    "--request-id",
+                    "00000000-0000-0000-0000-000000000000",
+                    "--hermes-root",
+                    str(root),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["status"], "rejected")
+
     def run_openai_worker(
         self,
         credits,

@@ -56,6 +56,10 @@ private final class UsageViewModel {
     private let service: ProfileQuotaRefreshService
     private let resetService: QuotaResetNotificationService
     private let accountingService: LocalAccountingService
+    private let redemptionService: ManualResetRedemptionService
+    var redemptionFlow: ManualResetRedemptionFlowState = .idle
+    var redemptionEligible = false
+    private var suppressNextQuotaResetNotification = false
     private var automaticRefreshTask: Task<Void, Never>? = nil
     private var uiTimerTask: Task<Void, Never>? = nil
     private var resetRefreshTask: Task<Void, Never>? = nil
@@ -87,6 +91,7 @@ private final class UsageViewModel {
         )
         resetService = QuotaResetNotificationService(notifier: MacOSQuotaResetNotifier())
         accountingService = LocalAccountingService(source: HermesStateDBAccountingReader(hermesHome: hermesRoot))
+        redemptionService = ManualResetRedemptionService(redeemer: ManualResetRedeemerFactory.make(hermesHome: hermesHome))
         subscriptions = Subscription.allCases.map {
             SubscriptionQuota(subscription: $0, result: .unavailable(.sourceMissing))
         }
@@ -116,7 +121,11 @@ private final class UsageViewModel {
         manualReset = state.manualReset
         availability = state.availability
         updatedAt = state.updatedAt
-        await resetService.process(state)
+        let suppress = suppressNextQuotaResetNotification
+        suppressNextQuotaResetNotification = false
+        await resetService.process(state, suppressing: suppress)
+        await redemptionService.clearVerificationAfterRefresh(manualReset: state.manualReset)
+        await refreshRedemptionEligibility()
         switch accountingService.readGroupedBySubscription() {
         case let .available(grouped):
             accountingBySubscription = grouped
@@ -239,6 +248,79 @@ private final class UsageViewModel {
         resetRetryTask?.cancel()
         resetRetryTask = nil
     }
+
+    @MainActor
+    var canRedeem: Bool {
+        redemptionFlow.isIdle
+            && redemptionEligible
+    }
+
+    @MainActor
+    func refreshRedemptionEligibility() async {
+        redemptionEligible = await redemptionService.canStart(
+            manualReset: manualReset,
+            subscriptions: subscriptions
+        )
+    }
+
+    @MainActor
+    func requestRedeem() {
+        redemptionFlow = .confirming
+    }
+
+    @MainActor
+    func confirmRedeem() async {
+        redemptionFlow = .redeeming
+        let result = await redemptionService.confirmRedemption(
+            manualReset: manualReset,
+            subscriptions: subscriptions
+        )
+        apply(redemptionResult: result)
+        await refreshRedemptionEligibility()
+    }
+
+    @MainActor
+    func retryRedeem() async {
+        redemptionFlow = .redeeming
+        let result = await redemptionService.retryRedemption()
+        apply(redemptionResult: result)
+        await refreshRedemptionEligibility()
+    }
+
+    @MainActor
+    func dismissRedemption() {
+        redemptionFlow = .idle
+    }
+
+    @MainActor
+    private func apply(redemptionResult result: ManualResetRedemptionResult) {
+        switch result {
+        case .confirmed, .alreadyRedeemed:
+            redemptionFlow = .success
+            suppressNextQuotaResetNotification = true
+            Task { await refresh(trigger: .manual) }
+        case .notConsumed:
+            redemptionFlow = .notConsumed
+        case .rejected:
+            redemptionFlow = .rejected
+        case .unverified:
+            redemptionFlow = .unverified
+        }
+    }
+}
+
+enum ManualResetRedemptionFlowState: Equatable {
+    case idle
+    case confirming
+    case redeeming
+    case success
+    case notConsumed
+    case rejected
+    case unverified
+
+    var isIdle: Bool { self == .idle }
+    var isRedeeming: Bool { self == .redeeming }
+    var showsRejected: Bool { self == .rejected || self == .notConsumed }
 }
 
 private struct UsagePopoverView: View {
@@ -265,6 +347,12 @@ private struct UsagePopoverView: View {
                         accounting: model.accountingBySubscription[subscription.subscription] ?? [],
                         accountingAvailability: model.accountingAvailability,
                         manualReset: model.manualReset,
+                        redemptionFlow: model.redemptionFlow,
+                        canRedeem: model.canRedeem,
+                        onRequestRedeem: model.requestRedeem,
+                        onConfirmRedeem: { Task { await model.confirmRedeem() } },
+                        onRetryRedeem: { Task { await model.retryRedeem() } },
+                        onDismissRedemption: model.dismissRedemption,
                         pendingQuotaRefreshWindows: model.pendingQuotaRefreshWindows,
                         uiNow: model.uiNow,
                         isAccountingExpanded: Binding(
@@ -424,6 +512,12 @@ private struct SubscriptionCard: View {
     let accounting: [LocalAccounting]
     let accountingAvailability: AccountingAvailability
     let manualReset: ManualResetRefreshState
+    let redemptionFlow: ManualResetRedemptionFlowState
+    let canRedeem: Bool
+    let onRequestRedeem: () -> Void
+    let onConfirmRedeem: () -> Void
+    let onRetryRedeem: () -> Void
+    let onDismissRedemption: () -> Void
     let pendingQuotaRefreshWindows: Set<QuotaWindowReference>
     let uiNow: Date
 
@@ -477,8 +571,16 @@ private struct SubscriptionCard: View {
 
             if subscription.subscription == .chatGPT {
                 DisclosureGroup(isExpanded: $isManualResetExpanded) {
-                    ManualResetSection(state: manualReset)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    ManualResetSection(
+                        state: manualReset,
+                        flow: redemptionFlow,
+                        canRedeem: canRedeem,
+                        onRedeem: onRequestRedeem,
+                        onConfirmRedeem: onConfirmRedeem,
+                        onRetryRedeem: onRetryRedeem,
+                        onDismiss: onDismissRedemption
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
                     HStack {
                         Label("Reset manuale", systemImage: "arrow.counterclockwise")

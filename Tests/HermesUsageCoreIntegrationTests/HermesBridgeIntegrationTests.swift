@@ -34,6 +34,31 @@ struct HermesBridgeIntegrationTests {
         #expect(snapshot.windows.first?.usedPercent == 40.0)
     }
 
+    @Test("redeems the nearest applicable credit through the bridge launcher")
+    func redeemsThroughBridgeLauncher() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let launcher = root.appendingPathComponent("hermes-usage-bridge")
+        let fixture = "{\"status\":\"reset\"}"
+        try "#!/bin/sh\n[ \"$1\" = \"--redeem\" ] || exit 2\nprintf '%s' '\(fixture)'\n".write(
+            to: launcher,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+
+        let redeemer = HermesUsageCommandReader(
+            hermesHome: root,
+            executable: launcher
+        )
+        let result = await redeemer.redeem(requestID: UUID())
+
+        #expect(result == .confirmed)
+    }
+
     @Test("ignores unsupported providers and preserves supported unavailable providers")
     func decodesUsageCommandOutput() async throws {
         let fixture = Data(

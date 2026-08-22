@@ -30,4 +30,4 @@ if [ ! -f "$RESOURCE" ]; then
     exit 4
 fi
 
-exec "$PYTHON" "$RESOURCE" --json --hermes-root "$HERMES_ROOT"
+exec "$PYTHON" "$RESOURCE" --hermes-root "$HERMES_ROOT" "$@"

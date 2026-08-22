@@ -1,6 +1,6 @@
 import Foundation
 
-struct HermesUsageCommandReader: ProfileUsageSource, Sendable {
+struct HermesUsageCommandReader: ProfileUsageSource, ManualResetRedeemer, Sendable {
     private let hermesHome: URL
     private let executable: URL?
     private let fixtureOutput: Data?
@@ -47,6 +47,31 @@ struct HermesUsageCommandReader: ProfileUsageSource, Sendable {
             quotaObservations: quotaObservations(from: payload),
             manualReset: manualResetResult(from: payload)
         )
+    }
+
+    func redeem(requestID: UUID) async -> ManualResetRedemptionReadResult {
+        switch runBridge(arguments: ["--redeem", "--request-id", requestID.uuidString]) {
+        case let .success(output):
+            guard let decoded = try? JSONDecoder().decode(RedeemPayload.self, from: output) else {
+                return .unverified
+            }
+            switch decoded.status {
+            case "reset":
+                return .confirmed
+            case "already_redeemed":
+                return .alreadyRedeemed
+            case "nothing_to_reset":
+                return .nothingToReset
+            case "no_credit":
+                return .noCredit
+            case "rejected":
+                return .rejected
+            default:
+                return .unverified
+            }
+        case .failure:
+            return .unverified
+        }
     }
 }
 
@@ -157,6 +182,10 @@ private extension HermesUsageCommandReader {
         let label: String
         let usedPercent: Double?
         let resetAt: Date?
+    }
+
+    struct RedeemPayload: Decodable {
+        let status: String
     }
 
     func quotaObservations(from payload: Payload) -> [ProfileQuotaObservation] {
@@ -295,16 +324,20 @@ private extension HermesUsageCommandReader {
     }
 
     func runCommand() -> Result<Data, CommandFailure> {
+        runBridge(arguments: ["--json"])
+    }
+
+    func runBridge(arguments: [String]) -> Result<Data, CommandFailure> {
         let process = Process()
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
 
-        guard let resolvedExecutable = executable ?? discoverBridgeExecutable() else {
+        guard let resolvedExecutable = resolveBridgeExecutable() else {
             return .failure(.commandMissing)
         }
         process.executableURL = resolvedExecutable
-        process.arguments = ["--json"]
+        process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
         environment["HERMES_HOME"] = hermesCommandHome.path
         process.environment = environment
@@ -327,6 +360,10 @@ private extension HermesUsageCommandReader {
             return .failure(.endpointUnavailable)
         }
         return .success(output.fileHandleForReading.readDataToEndOfFile())
+    }
+
+    func resolveBridgeExecutable() -> URL? {
+        executable ?? discoverBridgeExecutable()
     }
 
     func discoverBridgeExecutable() -> URL? {

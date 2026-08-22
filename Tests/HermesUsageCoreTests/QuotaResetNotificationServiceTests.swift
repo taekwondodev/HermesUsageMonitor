@@ -18,6 +18,18 @@ struct QuotaResetNotificationServiceTests {
         #expect(notifications[0].events[0].windowKind == .rollingFiveHours)
     }
 
+    @Test("suppresses the quota-reset notification for a suppressed refresh")
+    func suppressesRedemptionRefresh() async throws {
+        let notifier = RecordingNotifier()
+        let service = QuotaResetNotificationService(notifier: notifier)
+
+        await service.process(try state(usedPercent: 90, resetAt: 1_000))
+        await service.process(try state(usedPercent: 0, resetAt: 2_000), suppressing: true)
+
+        let notifications = await notifier.notifications
+        #expect(notifications.isEmpty)
+    }
+
     @Test("groups simultaneous window resets into one notification")
     func groupsSimultaneousResets() async throws {
         let notifier = RecordingNotifier()

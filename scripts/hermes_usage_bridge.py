@@ -350,6 +350,62 @@ def codex_manual_reset_payload(api: UsageAPI) -> dict[str, Any]:
     }
 
 
+def codex_redeem_payload(request_id: str, root: Path) -> dict[str, Any]:
+    """Consume one banked Codex rate-limit reset credit (POST consume).
+
+    Mirrors the official Hermes redeem flow: send a structured JSON body with a
+    single fresh UUID idempotency key and no credit identifier; the backend
+    selects the next available credit. Return a non-sensitive outcome payload.
+    """
+    try:
+        api = load_usage_api(root)
+    except BridgeError:
+        return {"status": "unverified", "reason": "provider unavailable"}
+    if not callable(api.resolve_codex_usage_credentials) or not callable(api.codex_backend_urls):
+        return {"status": "unverified", "reason": "redemption source unavailable"}
+    try:
+        token, base_url, account_id = api.resolve_codex_usage_credentials(None, None)
+        _usage_url, _credits_url, consume_url = api.codex_backend_urls(base_url)
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "User-Agent": "codex-cli",
+            "Content-Type": "application/json",
+        }
+        if account_id:
+            headers["ChatGPT-Account-Id"] = account_id
+        with api.httpx.Client(timeout=TIMEOUT_SECONDS) as client:
+            response = client.post(
+                consume_url,
+                headers=headers,
+                json={"redeem_request_id": request_id},
+            )
+            response.raise_for_status()
+            payload = response.json() or {}
+    except Exception as error:
+        if _is_http_rejection(api.httpx, error):
+            return {"status": "rejected"}
+        return {"status": "unverified", "reason": "redemption outcome unknown"}
+
+    code = str(payload.get("code", "") or "").strip().lower()
+    if code == "reset":
+        return {"status": "reset"}
+    if code == "already_redeemed":
+        return {"status": "already_redeemed"}
+    if code == "nothing_to_reset":
+        return {"status": "nothing_to_reset"}
+    if code == "no_credit":
+        return {"status": "no_credit"}
+    return {"status": "unverified", "reason": "redemption outcome unknown"}
+
+
+def _is_http_rejection(httpx_module: Any, error: Exception) -> bool:
+    http_error = getattr(httpx_module, "HTTPStatusError", None)
+    if http_error is None:
+        return False
+    return isinstance(error, http_error)
+
+
 def collect_provider(provider: str, subscription: str, api: UsageAPI) -> ProviderResult:
     manual_resets = (
         codex_manual_reset_payload(api)
@@ -466,6 +522,8 @@ def terminate_workers(_signum: int, _frame: Any) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--json", action="store_true", help="emit the JSON contract")
+    parser.add_argument("--redeem", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--request-id", help=argparse.SUPPRESS)
     parser.add_argument("--worker", choices=[provider for provider, _ in PROVIDERS], help=argparse.SUPPRESS)
     parser.add_argument("--hermes-root", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -473,6 +531,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.redeem:
+        if not args.request_id or not args.request_id.strip():
+            print("redeem requires --request-id", file=sys.stderr)
+            return 2
+        try:
+            root = resolve_hermes_root(args.hermes_root)
+        except BridgeError as error:
+            print(str(error), file=sys.stderr)
+            return 4
+        payload = codex_redeem_payload(args.request_id.strip(), root)
+        print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        return 0
     if not args.json:
         print("usage: hermes-usage-bridge --json", file=sys.stderr)
         return 2
