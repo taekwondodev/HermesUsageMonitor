@@ -2,13 +2,36 @@ import Foundation
 import HermesUsageCore
 import SwiftUI
 
+/// Colors and metrics taken verbatim from the Figma component
+/// "reset-manuale-sections" (file leTDr6oEAMH7nl9TZxczUY, node 47:16).
+enum ManualResetDesignToken {
+    static let headerText = Color(
+        red: 0.556_862_77,
+        green: 0.556_862_77,
+        blue: 0.576_470_61
+    )
+    static let contentBackground = Color(
+        red: 0.172_549_02,
+        green: 0.172_549_02,
+        blue: 0.180_392_16
+    )
+    static let primaryText = Color.white
+    static let tertiaryText = Color.white.opacity(0.3)
+    static let redeemTint = Color(
+        red: 0.188_235_30,
+        green: 0.819_607_85,
+        blue: 0.345_098_05
+    )
+    static let cornerRadius: CGFloat = 8
+}
+
 struct ManualResetDisplayModel: Equatable {
-    let countLabel: String?
-    let title: String
-    let statusLabel: String?
+    let headerCountLabel: String?
+    let primaryLabel: String
     let applicabilityLabel: String?
     let expirationLabel: String?
     let isStale: Bool
+    let isRedeemEnabled: Bool
 
     init(
         state: ManualResetRefreshState,
@@ -17,16 +40,17 @@ struct ManualResetDisplayModel: Equatable {
     ) {
         switch state {
         case .unavailable:
-            countLabel = nil
-            title = "Stato reset non disponibile"
-            statusLabel = nil
+            headerCountLabel = nil
+            primaryLabel = "Stato reset non disponibile"
             applicabilityLabel = nil
             expirationLabel = nil
             isStale = false
+            isRedeemEnabled = false
         case let .live(summary):
-            countLabel = Self.countLabel(summary.availableCount)
-            title = Self.title(summary.availableCount)
-            statusLabel = nil
+            headerCountLabel = Self.countLabel(summary.availableCount)
+            primaryLabel = summary.availableCount == 0
+                ? "Full reset non disponibile"
+                : "Full reset disponibile"
             applicabilityLabel = summary.availableCount == 0
                 ? nil
                 : summary.isApplicable ? "Utilizzabile ora" : "Non utilizzabile ora"
@@ -38,10 +62,12 @@ struct ManualResetDisplayModel: Equatable {
                     timeZone: timeZone
                 )
             isStale = false
+            isRedeemEnabled = summary.hasActionableCredit && summary.isApplicable
         case let .stale(summary):
-            countLabel = Self.countLabel(summary.availableCount)
-            title = Self.title(summary.availableCount)
-            statusLabel = "Non aggiornato"
+            headerCountLabel = Self.countLabel(summary.availableCount)
+            primaryLabel = summary.availableCount == 0
+                ? "Full reset non disponibile"
+                : "Full reset disponibile"
             applicabilityLabel = summary.availableCount == 0
                 ? nil
                 : summary.isApplicable
@@ -55,22 +81,12 @@ struct ManualResetDisplayModel: Equatable {
                     timeZone: timeZone
                 )
             isStale = true
+            isRedeemEnabled = false
         }
     }
 
     private static func countLabel(_ count: Int) -> String {
         count == 1 ? "1 disponibile" : "\(count) disponibili"
-    }
-
-    private static func title(_ count: Int) -> String {
-        switch count {
-        case 0:
-            return "Nessun Full reset disponibile"
-        case 1:
-            return "Full reset disponibile"
-        default:
-            return "Full reset disponibili"
-        }
     }
 
     private static func expirationLabel(
@@ -102,27 +118,45 @@ struct ManualResetSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(model.title)
-                .font(.caption.weight(.semibold))
+            Text(model.primaryLabel)
+                .font(.caption)
+                .foregroundStyle(ManualResetDesignToken.primaryText)
 
-            if let statusLabel = model.statusLabel {
-                Text(statusLabel)
+            if model.isStale {
+                Text("Non aggiornato")
                     .font(.caption2)
-                    .foregroundStyle(model.isStale ? Color.orange : Color.secondary)
+                    .foregroundStyle(Color.orange)
             }
 
             if let applicabilityLabel = model.applicabilityLabel {
                 Text(applicabilityLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(ManualResetDesignToken.headerText)
             }
 
             if let expirationLabel = model.expirationLabel {
                 Text(expirationLabel)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ManualResetDesignToken.tertiaryText)
             }
+
+            HStack {
+                Spacer()
+
+                Button("Riscatta") {}
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.borderedProminent)
+                    .tint(ManualResetDesignToken.redeemTint)
+                    .disabled(!model.isRedeemEnabled)
+                    .accessibilityHint("Riscatta il Full reset disponibile")
+            }
+            .padding(.top, 2)
         }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: ManualResetDesignToken.cornerRadius)
+                .fill(ManualResetDesignToken.contentBackground)
+        )
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }

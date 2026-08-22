@@ -427,6 +427,16 @@ private struct SubscriptionCard: View {
     let manualReset: ManualResetRefreshState
     let pendingQuotaRefreshWindows: Set<QuotaWindowReference>
     let uiNow: Date
+
+    private var accessibilitySummary: String {
+        let model = ManualResetDisplayModel(state: manualReset)
+        var parts = [model.headerCountLabel ?? "Stato reset non disponibile"]
+        if model.isStale { parts.append("Non aggiornato") }
+        if let applicability = model.applicabilityLabel { parts.append(applicability) }
+        if let expiration = model.expirationLabel { parts.append(expiration) }
+        return parts.joined(separator: ", ")
+    }
+
     @Binding var isAccountingExpanded: Bool
     @Binding var isManualResetExpanded: Bool
     let onMove: (Subscription, Int) -> Void
@@ -472,25 +482,30 @@ private struct SubscriptionCard: View {
                         .padding(.leading, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    HStack {
-                        Label("Reset manuale", systemImage: "arrow.counterclockwise")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.caption2)
+                            .foregroundStyle(ManualResetDesignToken.headerText)
 
-                        Spacer()
+                        Text("Reset manuale")
+                            .font(.caption)
+                            .foregroundStyle(ManualResetDesignToken.headerText)
 
-                        if let countLabel = ManualResetDisplayModel(state: manualReset).countLabel {
+                        Spacer(minLength: 8)
+
+                        if let countLabel = ManualResetDisplayModel(state: manualReset).headerCountLabel {
                             Text(countLabel)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(ManualResetDesignToken.headerText)
                         }
                     }
+                    .tint(ManualResetDesignToken.headerText)
                 }
+                .tint(ManualResetDesignToken.headerText)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityValue(
-                    ManualResetDisplayModel(state: manualReset).countLabel
-                        ?? "Stato reset non disponibile"
-                )
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Reset manuale")
+                .accessibilityValue(accessibilitySummary)
             }
 
             if accountingAvailability != .waiting {
