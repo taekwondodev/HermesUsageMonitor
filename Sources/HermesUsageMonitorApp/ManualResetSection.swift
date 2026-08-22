@@ -2,19 +2,13 @@ import Foundation
 import HermesUsageCore
 import SwiftUI
 
-/// Colors and metrics taken verbatim from the Figma component
-/// "reset-manuale-sections" (file leTDr6oEAMH7nl9TZxczUY, node 47:16).
 enum ManualResetDesignToken {
     static let headerText = Color(
         red: 0.556_862_77,
         green: 0.556_862_77,
         blue: 0.576_470_61
     )
-    static let contentBackground = Color(
-        red: 0.172_549_02,
-        green: 0.172_549_02,
-        blue: 0.180_392_16
-    )
+    static let contentBackground = Color.primary.opacity(0.06)
     static let primaryText = Color.white
     static let tertiaryText = Color.white.opacity(0.3)
     static let redeemTint = Color(
@@ -23,6 +17,7 @@ enum ManualResetDesignToken {
         blue: 0.345_098_05
     )
     static let cornerRadius: CGFloat = 8
+    static let contentPadding: CGFloat = 12
 }
 
 struct ManualResetDisplayModel: Equatable {
@@ -117,42 +112,40 @@ struct ManualResetSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(model.primaryLabel)
-                .font(.caption)
-                .foregroundStyle(ManualResetDesignToken.primaryText)
-
-            if model.isStale {
-                Text("Non aggiornato")
-                    .font(.caption2)
-                    .foregroundStyle(Color.orange)
-            }
-
-            if let applicabilityLabel = model.applicabilityLabel {
-                Text(applicabilityLabel)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.primaryLabel)
                     .font(.caption)
-                    .foregroundStyle(ManualResetDesignToken.headerText)
-            }
+                    .foregroundStyle(ManualResetDesignToken.primaryText)
 
-            if let expirationLabel = model.expirationLabel {
-                Text(expirationLabel)
-                    .font(.caption2)
-                    .foregroundStyle(ManualResetDesignToken.tertiaryText)
-            }
+                if model.isStale {
+                    Text("Non aggiornato")
+                        .font(.caption2)
+                        .foregroundStyle(Color.orange)
+                }
 
-            HStack {
-                Spacer()
+                if let applicabilityLabel = model.applicabilityLabel {
+                    Text(applicabilityLabel)
+                        .font(.caption)
+                        .foregroundStyle(ManualResetDesignToken.headerText)
+                }
 
-                Button("Riscatta") {}
-                    .font(.caption.weight(.semibold))
-                    .buttonStyle(.borderedProminent)
-                    .tint(ManualResetDesignToken.redeemTint)
-                    .disabled(!model.isRedeemEnabled)
-                    .accessibilityHint("Riscatta il Full reset disponibile")
+                if let expirationLabel = model.expirationLabel {
+                    Text(expirationLabel)
+                        .font(.caption2)
+                        .foregroundStyle(ManualResetDesignToken.tertiaryText)
+                }
             }
-            .padding(.top, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Riscatta") {}
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .tint(ManualResetDesignToken.redeemTint)
+                .disabled(!model.isRedeemEnabled)
+                .accessibilityHint("Riscatta il Full reset disponibile")
         }
-        .padding(10)
+        .padding(ManualResetDesignToken.contentPadding)
         .background(
             RoundedRectangle(cornerRadius: ManualResetDesignToken.cornerRadius)
                 .fill(ManualResetDesignToken.contentBackground)

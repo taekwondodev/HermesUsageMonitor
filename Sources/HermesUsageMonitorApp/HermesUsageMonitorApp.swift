@@ -327,7 +327,6 @@ private struct UsagePopoverView: View {
         .frame(width: 380)
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
         .onAppear {
-            isManualResetExpanded = false
             model.startUITimer()
         }
         .onDisappear {
@@ -479,29 +478,23 @@ private struct SubscriptionCard: View {
             if subscription.subscription == .chatGPT {
                 DisclosureGroup(isExpanded: $isManualResetExpanded) {
                     ManualResetSection(state: manualReset)
-                        .padding(.leading, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.caption2)
-                            .foregroundStyle(ManualResetDesignToken.headerText)
+                    HStack {
+                        Label("Reset manuale", systemImage: "arrow.counterclockwise")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
-                        Text("Reset manuale")
-                            .font(.caption)
-                            .foregroundStyle(ManualResetDesignToken.headerText)
-
-                        Spacer(minLength: 8)
+                        Spacer()
 
                         if let countLabel = ManualResetDisplayModel(state: manualReset).headerCountLabel {
                             Text(countLabel)
-                                .font(.caption)
-                                .foregroundStyle(ManualResetDesignToken.headerText)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .tint(ManualResetDesignToken.headerText)
                 }
-                .tint(ManualResetDesignToken.headerText)
+                .tint(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Reset manuale")

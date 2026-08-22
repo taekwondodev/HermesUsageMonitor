@@ -30,15 +30,24 @@ Exact values implemented in `ManualResetDesignToken`:
 
 | Token | Value |
 | --- | --- |
-| Header text (title, icon, trailing count) | `#8E8E93` (0.557, 0.557, 0.576) |
-| Expanded content background | `#2C2C2E` (0.173, 0.173, 0.180) |
+| Header text (title, icon, trailing count) | `.secondary`, same Label/semibold treatment as "Uso osservato da Hermes" |
+| Expanded content surface | `Color.primary.opacity(0.06)`, matches the "Uso osservato da Hermes" accounting blocks in `AccountingSection` |
 | Primary label | white |
 | Applicability label | header gray |
 | Expiration label | white at 30% opacity, 10 pt |
 | Redeem button | green `#30D158` (0.188, 0.820, 0.345), white label |
 | Disabled button | same fill, white label at 40% |
+| Expanded content padding | 12 pt |
 
-Header structure: chevron, refresh symbol (`arrow.counterclockwise`), title "Reset manuale", trailing count — all in the header gray, not `.secondary`. Future UI work for this section changes the Swift tokens only when the Figma component changes; the component is checked via the Figma MCP tools, not from memory.
+The expanded card content is a single horizontal row: the information block (primary + applicability + expiration labels) on the left and the Riscatta button vertically centered on the right — the Figma `flex items-center justify-between` contract. This keeps the button horizontally aligned with the text instead of dropping below the fold into its own row. The surface uses the same `Color.primary.opacity(0.06)` rounded-rectangle treatment as the accounting blocks so the two expandable cards share the same card language and page alignment; it does not reproduce the literal Figma hex for the surface.
+
+The manual reset card and its disclosure header carry the **same colors, spacing, and left alignment as the "Uso osservato da Hermes" section**: no extra leading indent on the expanded card (the accounting section has none), and the header is a `Label` with the SF symbol `arrow.counterclockwise` styled `.caption.weight(.semibold)` in `.secondary` — identical to the `umbrella.fill` header. The two expandable sections therefore align to the same left edge inside the popover.
+
+### Manual reset expansion state survives popover reopen
+
+The `DisclosureGroup` expansion state for the manual reset section is **persisted across popover close/reopen**: opening the card, closing the popover, and reopening it restores the same expanded state (matching the behavior of the accounting section, which already persisted via `expandedSubscriptions`). The popover root no longer force-resets `isManualResetExpanded` to `false` on every `onAppear`.
+
+Header structure: chevron, refresh symbol (`arrow.counterclockwise`), title "Reset manuale", trailing count — all styled to match the "Uso osservato da Hermes" header's `.secondary` treatment. Future UI work for this section changes the Swift tokens only when the Figma component changes; the component is checked via the Figma MCP tools, not from memory.
 
 Native controls stay native: no custom progress-bar or button replacements to work around color inheritance.
 
