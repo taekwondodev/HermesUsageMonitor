@@ -3,17 +3,13 @@ import HermesUsageCore
 import SwiftUI
 
 enum ManualResetDesignToken {
-    static let secondaryText = Color.secondary
     static let contentBackground = Color.primary.opacity(0.06)
-    static let primaryText = Color.primary
-    static let tertiaryText = Color.secondary.opacity(0.6)
     static let redeemTint = Color(
         red: 0.188_235_30,
         green: 0.819_607_85,
         blue: 0.345_098_05
     )
     static let cornerRadius: CGFloat = 8
-    static let contentPadding: CGFloat = 8
 }
 
 struct ManualResetDisplayModel: Equatable {
@@ -111,8 +107,7 @@ struct ManualResetSection: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.primaryLabel)
-                    .font(.caption)
-                    .foregroundStyle(ManualResetDesignToken.primaryText)
+                    .font(.caption.weight(.semibold))
 
                 if model.isStale {
                     Text("Non aggiornato")
@@ -122,14 +117,14 @@ struct ManualResetSection: View {
 
                 if let applicabilityLabel = model.applicabilityLabel {
                     Text(applicabilityLabel)
-                        .font(.caption)
-                        .foregroundStyle(ManualResetDesignToken.secondaryText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let expirationLabel = model.expirationLabel {
                     Text(expirationLabel)
                         .font(.caption2)
-                        .foregroundStyle(ManualResetDesignToken.tertiaryText)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,7 +136,8 @@ struct ManualResetSection: View {
                 .disabled(!model.isRedeemEnabled)
                 .accessibilityHint("Riscatta il Full reset disponibile")
         }
-        .padding(ManualResetDesignToken.contentPadding)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: ManualResetDesignToken.cornerRadius)
                 .fill(ManualResetDesignToken.contentBackground)
