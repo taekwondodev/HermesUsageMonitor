@@ -12,7 +12,7 @@ struct HermesBridgeIntegrationTests {
 
         let launcher = root.appendingPathComponent("hermes-usage-bridge")
         let fixture = """
-        {"version":2,"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"Session","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"}]}}}
+        {"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"Session","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"}]}}}
         """
         try "#!/bin/sh\n[ \"$1\" = \"--json\" ] || exit 2\nprintf '%s' '\(fixture)'\n".write(
             to: launcher,
@@ -39,7 +39,6 @@ struct HermesBridgeIntegrationTests {
         let fixture = Data(
             """
             {
-              "version": 2,
               "providers": {
                 "nous": {
                   "status": "available",
@@ -68,22 +67,6 @@ struct HermesBridgeIntegrationTests {
             return
         }
         #expect(chatGPT.result == .unavailable(.authenticationFailed))
-    }
-
-    @Test("marks an unsupported usage contract explicitly")
-    func marksUnsupportedUsageVersion() async throws {
-        let fixture = Data(
-            """
-            {"version": 99, "providers": {}}
-            """.utf8
-        )
-        let observations = await HermesUsageCommandReader(
-            hermesHome: FileManager.default.temporaryDirectory,
-            fixtureOutput: fixture
-        ).readUsage().quotaObservations
-
-        #expect(observations.count == Subscription.allCases.count)
-        #expect(observations.allSatisfy { $0.result == .unavailable(.unsupportedVersion) })
     }
 
     @Test("marks malformed usage JSON without hiding providers")

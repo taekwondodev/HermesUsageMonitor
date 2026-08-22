@@ -19,7 +19,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
 
-VERSION = 2
 PROVIDERS = (
     ("openai-codex", "chatgpt"),
     ("opencode-go", "opencode-go"),
@@ -452,7 +451,6 @@ def collect(root: Path) -> dict[str, Any]:
                 worker.communicate()
     results.sort(key=lambda result: next(index for index, item in enumerate(PROVIDERS) if item[0] == result.provider))
     return {
-        "version": VERSION,
         "generatedAt": isoformat(utc_now()),
         "providers": {result.provider: result.payload for result in results},
     }
@@ -467,7 +465,7 @@ def terminate_workers(_signum: int, _frame: Any) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument("--json", action="store_true", help="emit the versioned JSON contract")
+    parser.add_argument("--json", action="store_true", help="emit the JSON contract")
     parser.add_argument("--worker", choices=[provider for provider, _ in PROVIDERS], help=argparse.SUPPRESS)
     parser.add_argument("--hermes-root", help=argparse.SUPPRESS)
     return parser.parse_args()

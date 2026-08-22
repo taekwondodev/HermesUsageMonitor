@@ -19,7 +19,7 @@ spec.loader.exec_module(bridge)
 
 
 class HermesUsageBridgeTests(unittest.TestCase):
-    def test_builds_v2_quota_payload_for_supported_windows(self):
+    def test_builds_quota_payload_for_supported_windows(self):
         snapshot = SimpleNamespace(
             source="usage_api",
             fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),

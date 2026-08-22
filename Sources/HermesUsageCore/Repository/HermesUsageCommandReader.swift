@@ -43,13 +43,6 @@ struct HermesUsageCommandReader: ProfileUsageSource, Sendable {
             }
         }
 
-        guard payload.version == Self.contractVersion else {
-            return unavailableRead(
-                quota: .unsupportedVersion,
-                manualReset: .unsupportedVersion
-            )
-        }
-
         return ProfileUsageRead(
             quotaObservations: quotaObservations(from: payload),
             manualReset: manualResetResult(from: payload)
@@ -58,8 +51,6 @@ struct HermesUsageCommandReader: ProfileUsageSource, Sendable {
 }
 
 private extension HermesUsageCommandReader {
-    static let contractVersion = 2
-
     enum CommandFailure: Error {
         case commandMissing
         case authenticationFailed
@@ -82,7 +73,6 @@ private extension HermesUsageCommandReader {
     }
 
     struct Payload: Decodable {
-        let version: Int
         let providers: [String: Provider]
     }
 

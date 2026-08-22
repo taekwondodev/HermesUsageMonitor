@@ -84,7 +84,6 @@ enum ManualResetUnavailableReason: Equatable, Sendable {
     case sourceMissing
     case sourceUnavailable
     case malformedData
-    case unsupportedVersion
 }
 
 enum ManualResetReadResult: Equatable, Sendable {
