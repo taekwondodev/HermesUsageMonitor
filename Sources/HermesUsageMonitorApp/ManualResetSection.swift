@@ -3,21 +3,17 @@ import HermesUsageCore
 import SwiftUI
 
 enum ManualResetDesignToken {
-    static let headerText = Color(
-        red: 0.556_862_77,
-        green: 0.556_862_77,
-        blue: 0.576_470_61
-    )
+    static let secondaryText = Color.secondary
     static let contentBackground = Color.primary.opacity(0.06)
-    static let primaryText = Color.white
-    static let tertiaryText = Color.white.opacity(0.3)
+    static let primaryText = Color.primary
+    static let tertiaryText = Color.secondary.opacity(0.6)
     static let redeemTint = Color(
         red: 0.188_235_30,
         green: 0.819_607_85,
         blue: 0.345_098_05
     )
     static let cornerRadius: CGFloat = 8
-    static let contentPadding: CGFloat = 12
+    static let contentPadding: CGFloat = 8
 }
 
 struct ManualResetDisplayModel: Equatable {
@@ -127,7 +123,7 @@ struct ManualResetSection: View {
                 if let applicabilityLabel = model.applicabilityLabel {
                     Text(applicabilityLabel)
                         .font(.caption)
-                        .foregroundStyle(ManualResetDesignToken.headerText)
+                        .foregroundStyle(ManualResetDesignToken.secondaryText)
                 }
 
                 if let expirationLabel = model.expirationLabel {

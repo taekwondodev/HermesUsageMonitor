@@ -32,16 +32,18 @@ Exact values implemented in `ManualResetDesignToken`:
 | --- | --- |
 | Header text (title, icon, trailing count) | `.secondary`, same Label/semibold treatment as "Uso osservato da Hermes" |
 | Expanded content surface | `Color.primary.opacity(0.06)`, matches the "Uso osservato da Hermes" accounting blocks in `AccountingSection` |
-| Primary label | white |
-| Applicability label | header gray |
-| Expiration label | white at 30% opacity, 10 pt |
+| Primary label | `.primary` |
+| Applicability label | `.secondary` |
+| Expiration label | `.secondary` at 60% opacity |
 | Redeem button | green `#30D158` (0.188, 0.820, 0.345), white label |
 | Disabled button | same fill, white label at 40% |
-| Expanded content padding | 12 pt |
+| Expanded content padding | 8 pt |
 
-The expanded card content is a single horizontal row: the information block (primary + applicability + expiration labels) on the left and the Riscatta button vertically centered on the right — the Figma `flex items-center justify-between` contract. This keeps the button horizontally aligned with the text instead of dropping below the fold into its own row. The surface uses the same `Color.primary.opacity(0.06)` rounded-rectangle treatment as the accounting blocks so the two expandable cards share the same card language and page alignment; it does not reproduce the literal Figma hex for the surface.
+All card text uses **adaptive** semantic colors (`.primary` / `.secondary`) rather than hard-coded white, matching the accounting blocks and the rest of the popover. The app does not force a color scheme, so fixing white text on the adaptive `Color.primary.opacity(0.06)` surface would be unreadable in light mode; semantic colors keep the same appearance in dark mode and stay legible in light mode.
 
-The manual reset card and its disclosure header carry the **same colors, spacing, and left alignment as the "Uso osservato da Hermes" section**: no extra leading indent on the expanded card (the accounting section has none), and the header is a `Label` with the SF symbol `arrow.counterclockwise` styled `.caption.weight(.semibold)` in `.secondary` — identical to the `umbrella.fill` header. The two expandable sections therefore align to the same left edge inside the popover.
+The expanded card content is a single horizontal row: the information block (primary + applicability + expiration labels) on the left and the Riscatta button vertically centered on the right — the Figma `flex items-center justify-between` contract. This keeps the button horizontally aligned with the text instead of dropping below the fold into its own row. The surface uses the same `Color.primary.opacity(0.06)` rounded-rectangle treatment and the same 8-padding as the accounting blocks so the two expandable cards share the same card language, inset, and page alignment; it does not reproduce the literal Figma hex for the surface.
+
+The manual reset card and its disclosure header carry the **same colors, spacing, and left alignment as the "Uso osservato da Hermes" section**: no extra leading indent on the expanded card (the accounting section has none), a header that is a `Label` with the SF symbol `arrow.counterclockwise` styled `.caption.weight(.semibold)` in `.secondary` (same treatment as the `umbrella.fill` header), and the Riscatta button vertically centered as in `justify-between`. The two expandable sections therefore align to the same left edge inside the popover, and the disclosure chevron is not separately tinted (the accounting section applies no tint either), so both chevrons render identically.
 
 ### Manual reset expansion state survives popover reopen
 

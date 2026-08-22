@@ -494,7 +494,6 @@ private struct SubscriptionCard: View {
                         }
                     }
                 }
-                .tint(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Reset manuale")
