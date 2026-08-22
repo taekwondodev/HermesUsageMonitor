@@ -4,7 +4,7 @@ import SwiftUI
 
 enum ManualResetDesignToken {
     static let contentBackground = Color.primary.opacity(0.06)
-    static let expirationText = Color(nsColor: .tertiaryLabelColor)
+    static let expirationLabelColor = Color(nsColor: .tertiaryLabelColor)
     static let redeemTint = Color(
         red: 0.188_235_30,
         green: 0.819_607_85,
@@ -138,7 +138,7 @@ struct ManualResetSection: View {
 
                 Text(expirationLabel)
                     .font(.caption2)
-                    .foregroundStyle(ManualResetDesignToken.expirationText)
+                    .foregroundStyle(ManualResetDesignToken.expirationLabelColor)
             }
         }
         .padding(.vertical, 6)

@@ -2,8 +2,6 @@
 
 | Canonical role | Label in this repository |
 |---|---|
-| `needs-triage` | `needs-triage` |
-| `needs-info` | `needs-info` |
+| `needs-grilling` | `needs-grilling` |
 | `ready-for-agent` | `ready-for-agent` |
-| `ready-for-human` | `ready-for-human` |
 | `wontfix` | `wontfix` |
