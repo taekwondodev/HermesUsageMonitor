@@ -21,6 +21,8 @@ HermesUsageMonitor monitors quota windows observed through Hermes Agent.
 - **Observed Hermes usage**: the token, request, model, and cost aggregate retained from Hermes and presented for the current accounting window. It describes the selected 30-day window, not the date Hermes was installed or downloaded.
 - **Snapshot age**: the relative time elapsed since the snapshot’s provider-declared `capturedAt`, displayed with the `fa` suffix. It uses the shared visible-popover clock and never shows a negative age.
 - **Aggregated reset notification**: simultaneous verified resets are grouped into one notification containing the provider and all reset windows.
+- **Quota bar palette**: quota `ProgressView` bars always use the fixed semantic tint from `color(for:freshness:)` — green, orange, red, or gray. They never inherit the system accent color or a container-level tint (see `docs/adr/0003-quota-bar-colors-and-manual-reset-design.md`).
+- **Manual reset section design source**: the Figma component `reset-manuale-sections` is the visual source of truth for the Reset manuale section; colors and layout flow one-way into `ManualResetDesignToken` and change only when the component changes.
 
 The app treats Hermes and provider quota data as read-only observations. Local token/request/cost accounting cannot establish an official quota reset.
 
