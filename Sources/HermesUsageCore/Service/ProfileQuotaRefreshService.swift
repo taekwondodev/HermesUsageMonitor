@@ -41,19 +41,26 @@ public actor ProfileQuotaRefreshService {
     private let aggregator: ProfileQuotaAggregator
     private let observer: any ProfileQuotaRefreshObserver
     private let manualResetService: ManualResetRefreshService
+    private let expirationNotifier: ManualResetExpirationNotifierService
     private var lastSuccessful: [SubscriptionQuota]?
 
     public init(
         hermesHome: URL,
         clock: @escaping @Sendable () -> Date = Date.init,
         observer: any ProfileQuotaRefreshObserver,
-        manualResetObserver: any ManualResetRefreshObserver
+        manualResetObserver: any ManualResetRefreshObserver,
+        expirationNotifier: (any ManualResetExpirationNotifier)? = nil,
+        expirationHistory: (any ManualResetExpirationHistory)? = nil,
+        expirationObserver: any ManualResetExpirationObserver = NoopManualResetExpirationObserver()
     ) {
         self.init(
             source: HermesUsageCommandReader(hermesHome: hermesHome),
             clock: clock,
             observer: observer,
-            manualResetObserver: manualResetObserver
+            manualResetObserver: manualResetObserver,
+            expirationNotifier: expirationNotifier,
+            expirationHistory: expirationHistory,
+            expirationObserver: expirationObserver
         )
     }
 
@@ -61,7 +68,10 @@ public actor ProfileQuotaRefreshService {
         source: any ProfileUsageSource,
         clock: @escaping @Sendable () -> Date = Date.init,
         observer: any ProfileQuotaRefreshObserver = NoopProfileQuotaRefreshObserver(),
-        manualResetObserver: any ManualResetRefreshObserver = NoopManualResetRefreshObserver()
+        manualResetObserver: any ManualResetRefreshObserver = NoopManualResetRefreshObserver(),
+        expirationNotifier: (any ManualResetExpirationNotifier)? = nil,
+        expirationHistory: (any ManualResetExpirationHistory)? = nil,
+        expirationObserver: any ManualResetExpirationObserver = NoopManualResetExpirationObserver()
     ) {
         self.source = source
         self.clock = clock
@@ -71,12 +81,20 @@ public actor ProfileQuotaRefreshService {
             clock: clock,
             observer: manualResetObserver
         )
+        self.expirationNotifier = ManualResetExpirationNotifierService(
+            notifier: expirationNotifier ?? NoopManualResetExpirationNotifier(),
+            history: expirationHistory ?? NoopManualResetExpirationHistory(),
+            observer: expirationObserver
+        )
     }
 
     public func refresh() async -> SubscriptionRefreshState {
         let read = await source.readUsage()
         let observations = read.quotaObservations
         let manualReset = await manualResetService.refresh(read.manualReset)
+        if case .live = manualReset {
+            await expirationNotifier.process(read.manualReset)
+        }
         guard !observations.isEmpty else {
             if let lastSuccessful {
                 return record(SubscriptionRefreshState(

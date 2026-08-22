@@ -84,10 +84,16 @@ private final class UsageViewModel {
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
             : hermesHome
+        let expirationHistoryFile = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/HermesUsageMonitor", isDirectory: true)
+            .appendingPathComponent("manual-reset-expiration-history.json")
         service = ProfileQuotaRefreshService(
             hermesHome: hermesHome,
             observer: OSLogProfileQuotaRefreshObserver(),
-            manualResetObserver: OSLogManualResetRefreshObserver()
+            manualResetObserver: OSLogManualResetRefreshObserver(),
+            expirationNotifier: MacOSManualResetExpirationNotifier(),
+            expirationHistory: FileManualResetExpirationHistory(fileURL: expirationHistoryFile),
+            expirationObserver: OSLogManualResetExpirationObserver()
         )
         resetService = QuotaResetNotificationService(notifier: MacOSQuotaResetNotifier())
         accountingService = LocalAccountingService(source: HermesStateDBAccountingReader(hermesHome: hermesRoot))
