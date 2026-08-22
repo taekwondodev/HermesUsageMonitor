@@ -12,7 +12,7 @@ struct HermesBridgeIntegrationTests {
 
         let launcher = root.appendingPathComponent("hermes-usage-bridge")
         let fixture = """
-        {"version":1,"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"Session","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"}]}}}
+        {"version":2,"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"Session","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"}]}}}
         """
         try "#!/bin/sh\n[ \"$1\" = \"--json\" ] || exit 2\nprintf '%s' '\(fixture)'\n".write(
             to: launcher,
@@ -24,7 +24,7 @@ struct HermesBridgeIntegrationTests {
         let observations = await HermesUsageCommandReader(
             hermesHome: root,
             executable: launcher
-        ).read()
+        ).readUsage().quotaObservations
 
         let chatGPT = try #require(observations.first { $0.subscription == .chatGPT })
         guard case let .snapshot(snapshot) = chatGPT.result else {
@@ -39,7 +39,7 @@ struct HermesBridgeIntegrationTests {
         let fixture = Data(
             """
             {
-              "version": 1,
+              "version": 2,
               "providers": {
                 "nous": {
                   "status": "available",
@@ -59,7 +59,7 @@ struct HermesBridgeIntegrationTests {
         let observations = await HermesUsageCommandReader(
             hermesHome: FileManager.default.temporaryDirectory,
             fixtureOutput: fixture
-        ).read()
+        ).readUsage().quotaObservations
 
         #expect(observations.count == 1)
         guard let chatGPT = observations.first(where: { $0.subscription == .chatGPT })
@@ -80,7 +80,7 @@ struct HermesBridgeIntegrationTests {
         let observations = await HermesUsageCommandReader(
             hermesHome: FileManager.default.temporaryDirectory,
             fixtureOutput: fixture
-        ).read()
+        ).readUsage().quotaObservations
 
         #expect(observations.count == Subscription.allCases.count)
         #expect(observations.allSatisfy { $0.result == .unavailable(.unsupportedVersion) })
@@ -91,7 +91,7 @@ struct HermesBridgeIntegrationTests {
         let observations = await HermesUsageCommandReader(
             hermesHome: FileManager.default.temporaryDirectory,
             fixtureOutput: Data("not-json".utf8)
-        ).read()
+        ).readUsage().quotaObservations
 
         #expect(observations.count == Subscription.allCases.count)
         #expect(observations.allSatisfy { $0.result == .unavailable(.malformedSnapshot) })

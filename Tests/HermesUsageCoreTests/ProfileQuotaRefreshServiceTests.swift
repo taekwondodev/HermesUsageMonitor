@@ -69,6 +69,40 @@ struct ProfileQuotaRefreshServiceTests {
         #expect(opencode.windows[0].usedPercent == 40)
     }
 
+    @Test("propagates quota and manual reset state from one usage read")
+    func propagatesCombinedUsageRead() async throws {
+        let manualSnapshot = try ManualResetSnapshot(
+            availableCount: 1,
+            applicableAvailableCount: 0,
+            credits: [try ManualResetCredit(
+                identifier: "credit-1",
+                title: "Full reset",
+                status: .available,
+                isSupportedByPlan: true,
+                expiresAt: Date(timeIntervalSince1970: 1_000)
+            )],
+            capturedAt: Date(timeIntervalSince1970: 100)
+        )
+        let service = ProfileQuotaRefreshService(
+            source: SequenceSource(
+                reads: [[try observation()]],
+                manualResetResults: [.snapshot(manualSnapshot)]
+            ),
+            clock: { Date(timeIntervalSince1970: 100) }
+        )
+
+        let state = await service.refresh()
+
+        #expect(state.availability == .live)
+        guard case let .live(summary) = state.manualReset else {
+            Issue.record("Expected the manual reset result from the same source read")
+            return
+        }
+        #expect(summary.availableCount == 1)
+        #expect(summary.applicableAvailableCount == 0)
+        #expect(summary.expiration == .dated(QuotaTimestamp(date: Date(timeIntervalSince1970: 1_000))))
+    }
+
     private func observation(
         subscription: Subscription = .chatGPT,
         usedPercent: Double = 25
@@ -92,16 +126,31 @@ struct ProfileQuotaRefreshServiceTests {
         )
     }
 
-    private actor SequenceSource: ProfileQuotaSource {
+    private actor SequenceSource: ProfileUsageSource {
         var reads: [[ProfileQuotaObservation]]
+        var manualResetResults: [ManualResetReadResult]
 
-        init(reads: [[ProfileQuotaObservation]]) {
+        init(
+            reads: [[ProfileQuotaObservation]],
+            manualResetResults: [ManualResetReadResult] = []
+        ) {
             self.reads = reads
+            self.manualResetResults = manualResetResults
         }
 
-        func read() async -> [ProfileQuotaObservation] {
-            guard !reads.isEmpty else { return [] }
-            return reads.removeFirst()
+        func readUsage() async -> ProfileUsageRead {
+            let observations: [ProfileQuotaObservation]
+            if reads.isEmpty {
+                observations = []
+            } else {
+                observations = reads.removeFirst()
+            }
+            return ProfileUsageRead(
+                quotaObservations: observations,
+                manualReset: manualResetResults.isEmpty
+                    ? .unavailable(.sourceMissing)
+                    : manualResetResults.removeFirst()
+            )
         }
     }
 }

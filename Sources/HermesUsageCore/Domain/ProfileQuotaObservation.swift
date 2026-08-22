@@ -33,6 +33,11 @@ struct ProfileQuotaObservation: Equatable, Sendable {
     }
 }
 
+struct ProfileUsageRead: Equatable, Sendable {
+    let quotaObservations: [ProfileQuotaObservation]
+    let manualReset: ManualResetReadResult
+}
+
 public struct SubscriptionQuota: Equatable, Identifiable, Sendable {
     public let subscription: Subscription
     public let result: QuotaReadResult

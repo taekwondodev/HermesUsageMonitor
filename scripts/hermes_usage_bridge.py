@@ -19,7 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
 
-VERSION = 1
+VERSION = 2
 PROVIDERS = (
     ("openai-codex", "chatgpt"),
     ("opencode-go", "opencode-go"),
@@ -37,6 +37,8 @@ class UsageAPI:
     fetch_account_usage: Callable[[str], Any]
     resolve_runtime_provider: Callable[..., Any]
     httpx: Any
+    resolve_codex_usage_credentials: Callable[..., Any] | None = None
+    codex_backend_urls: Callable[..., Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,13 @@ def isoformat(value: datetime) -> str:
 
 def parse_datetime(value: Any) -> datetime | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return datetime.fromtimestamp(float(value), timezone.utc)
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            return None
+        try:
+            return datetime.fromtimestamp(numeric, timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
     if isinstance(value, str):
         text = value.strip()
         if text.endswith("Z"):
@@ -103,13 +111,19 @@ def load_usage_api(root: Path) -> UsageAPI:
 
     fetch = getattr(account_usage, "fetch_account_usage", None)
     resolve_runtime = getattr(runtime_provider, "resolve_runtime_provider", None)
-    if not callable(fetch) or not callable(resolve_runtime) or not callable(getattr(httpx, "Client", None)):
+    resolve_codex = getattr(account_usage, "_resolve_codex_usage_credentials", None)
+    codex_urls = getattr(account_usage, "_codex_backend_urls", None)
+    if (
+        not callable(fetch)
+        or not callable(resolve_runtime)
+        or not callable(getattr(httpx, "Client", None))
+    ):
         raise BridgeError("Hermes usage API is incompatible")
     for module in (account_usage, runtime_provider):
         module_file = Path(str(getattr(module, "__file__", ""))).resolve()
         if root not in module_file.parents:
             raise BridgeError("Hermes usage API resolved outside the selected checkout")
-    return UsageAPI(fetch, resolve_runtime, httpx)
+    return UsageAPI(fetch, resolve_runtime, httpx, resolve_codex, codex_urls)
 
 
 def classify_window(label: str) -> str | None:
@@ -252,12 +266,110 @@ def opencode_snapshot(api: UsageAPI) -> Any | None:
     )
 
 
+def manual_reset_unavailable(reason: str) -> dict[str, Any]:
+    return {"status": "unavailable", "reason": reason}
+
+
+def codex_manual_reset_payload(api: UsageAPI) -> dict[str, Any]:
+    if not callable(api.resolve_codex_usage_credentials) or not callable(api.codex_backend_urls):
+        return manual_reset_unavailable("manual reset source unavailable")
+    try:
+        token, base_url, account_id = api.resolve_codex_usage_credentials(None, None)
+        usage_url, credits_url, _consume_url = api.codex_backend_urls(base_url)
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "User-Agent": "codex-cli",
+        }
+        if account_id:
+            headers["ChatGPT-Account-Id"] = account_id
+        with api.httpx.Client(timeout=TIMEOUT_SECONDS) as client:
+            usage_response = client.get(usage_url, headers=headers)
+            usage_response.raise_for_status()
+            credits_response = client.get(credits_url, headers=headers)
+            credits_response.raise_for_status()
+        usage_payload = usage_response.json() or {}
+        credits_payload = credits_response.json() or {}
+    except Exception:
+        return manual_reset_unavailable("manual reset provider unavailable")
+
+    counts = usage_payload.get("rate_limit_reset_credits")
+    credits = credits_payload.get("credits")
+    if not isinstance(counts, dict) or not isinstance(credits, list):
+        return manual_reset_unavailable("manual reset data malformed")
+    available = counts.get("available_count")
+    applicable = counts.get("applicable_available_count")
+    if (
+        not isinstance(available, int)
+        or isinstance(available, bool)
+        or not isinstance(applicable, int)
+        or isinstance(applicable, bool)
+        or available < 0
+        or applicable < 0
+        or applicable > available
+    ):
+        return manual_reset_unavailable("manual reset data malformed")
+
+    mapped: list[dict[str, Any]] = []
+    for credit in credits:
+        if not isinstance(credit, dict):
+            return manual_reset_unavailable("manual reset data malformed")
+        identifier = credit.get("id")
+        title = credit.get("title")
+        status = credit.get("status")
+        supported = credit.get("is_supported_by_plan")
+        if (
+            not isinstance(identifier, str)
+            or not identifier.strip()
+            or not isinstance(title, str)
+            or not title.strip()
+            or status not in {"available", "redeemed", "expired"}
+            or not isinstance(supported, bool)
+        ):
+            return manual_reset_unavailable("manual reset data malformed")
+        granted_at = parse_datetime(credit.get("granted_at"))
+        expires_at = parse_datetime(credit.get("expires_at"))
+        if credit.get("granted_at") is not None and granted_at is None:
+            return manual_reset_unavailable("manual reset data malformed")
+        if credit.get("expires_at") is not None and expires_at is None:
+            return manual_reset_unavailable("manual reset data malformed")
+        mapped.append({
+            "id": identifier.strip(),
+            "title": title.strip(),
+            "status": status,
+            "isSupportedByPlan": supported,
+            "grantedAt": isoformat(granted_at) if granted_at else None,
+            "expiresAt": isoformat(expires_at) if expires_at else None,
+        })
+
+    return {
+        "status": "available",
+        "capturedAt": isoformat(utc_now()),
+        "availableCount": available,
+        "applicableAvailableCount": applicable,
+        "credits": mapped,
+    }
+
+
 def collect_provider(provider: str, subscription: str, api: UsageAPI) -> ProviderResult:
+    manual_resets = (
+        codex_manual_reset_payload(api)
+        if provider == "openai-codex"
+        else None
+    )
     try:
         snapshot = opencode_snapshot(api) if provider == "opencode-go" else api.fetch_account_usage(provider)
     except Exception:
-        return unavailable(provider, subscription, "provider unavailable")
-    return snapshot_payload(provider, subscription, snapshot)
+        result = unavailable(provider, subscription, "provider unavailable")
+    else:
+        result = snapshot_payload(provider, subscription, snapshot)
+    if manual_resets is None:
+        return result
+    return ProviderResult(
+        provider=result.provider,
+        subscription=result.subscription,
+        payload={**result.payload, "manualResets": manual_resets},
+    )
 
 
 def start_worker(provider: str, root: Path, popen: Callable[..., Any] = subprocess.Popen) -> Any:

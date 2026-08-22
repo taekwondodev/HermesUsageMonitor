@@ -1,6 +1,6 @@
 import Foundation
 
-struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
+struct HermesUsageCommandReader: ProfileUsageSource, Sendable {
     private let hermesHome: URL
     private let executable: URL?
     private let fixtureOutput: Data?
@@ -15,33 +15,165 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
         self.fixtureOutput = fixtureOutput
     }
 
-    func read() async -> [ProfileQuotaObservation] {
+    func readUsage() async -> ProfileUsageRead {
         let payload: Payload
         if let fixtureOutput {
             guard let decoded = try? decode(fixtureOutput) else {
-                return unavailableObservations(.malformedSnapshot)
+                return unavailableRead(
+                    quota: .malformedSnapshot,
+                    manualReset: .malformedData
+                )
             }
             payload = decoded
         } else {
             switch runCommand() {
             case let .success(output):
                 guard let decoded = try? decode(output) else {
-                    return unavailableObservations(.malformedSnapshot)
+                    return unavailableRead(
+                        quota: .malformedSnapshot,
+                        manualReset: .malformedData
+                    )
                 }
                 payload = decoded
             case let .failure(reason):
-                return unavailableObservations(reason.quotaReason)
+                return unavailableRead(
+                    quota: reason.quotaReason,
+                    manualReset: reason.manualResetReason
+                )
             }
         }
 
-        if let version = payload.version, version != 1 {
-            return unavailableObservations(.unsupportedVersion)
+        guard payload.version == Self.contractVersion else {
+            return unavailableRead(
+                quota: .unsupportedVersion,
+                manualReset: .unsupportedVersion
+            )
         }
 
-        let profile = try? HermesProfileID(value: "hermes-usage-command")
-        guard let profile else { return [] }
-        let observedAt = QuotaTimestamp(date: Date())
+        return ProfileUsageRead(
+            quotaObservations: quotaObservations(from: payload),
+            manualReset: manualResetResult(from: payload)
+        )
+    }
+}
 
+private extension HermesUsageCommandReader {
+    static let contractVersion = 2
+
+    enum CommandFailure: Error {
+        case commandMissing
+        case authenticationFailed
+        case endpointUnavailable
+
+        var quotaReason: QuotaUnavailableReason {
+            switch self {
+            case .commandMissing: return .commandMissing
+            case .authenticationFailed: return .authenticationFailed
+            case .endpointUnavailable: return .endpointUnavailable
+            }
+        }
+
+        var manualResetReason: ManualResetUnavailableReason {
+            switch self {
+            case .commandMissing: return .sourceMissing
+            case .authenticationFailed, .endpointUnavailable: return .sourceUnavailable
+            }
+        }
+    }
+
+    struct Payload: Decodable {
+        let version: Int
+        let providers: [String: Provider]
+    }
+
+    struct Provider: Decodable {
+        let status: String
+        let subscription: String
+        let capturedAt: Date?
+        let windows: [Window]?
+        let reason: String?
+        let manualResets: ManualResetEnvelope
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case subscription
+            case capturedAt
+            case windows
+            case reason
+            case manualResets
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            status = try container.decode(String.self, forKey: .status)
+            subscription = try container.decode(String.self, forKey: .subscription)
+            capturedAt = try container.decodeIfPresent(Date.self, forKey: .capturedAt)
+            windows = try container.decodeIfPresent([Window].self, forKey: .windows)
+            reason = try container.decodeIfPresent(String.self, forKey: .reason)
+            if container.contains(.manualResets) {
+                do {
+                    manualResets = .payload(try container.decode(
+                        ManualResetPayload.self,
+                        forKey: .manualResets
+                    ))
+                } catch {
+                    manualResets = .malformed
+                }
+            } else {
+                manualResets = .missing
+            }
+        }
+
+        var unavailableReason: QuotaUnavailableReason {
+            let normalized = (reason ?? "").lowercased()
+            if normalized.contains("auth") || normalized.contains("api key")
+                || normalized.contains("401") || normalized.contains("403") {
+                return .authenticationFailed
+            }
+            if normalized.contains("endpoint") || normalized.contains("network")
+                || normalized.contains("timeout") {
+                return .endpointUnavailable
+            }
+            return .sourceUnreadable
+        }
+    }
+
+    enum ManualResetEnvelope {
+        case payload(ManualResetPayload)
+        case missing
+        case malformed
+    }
+
+    struct ManualResetPayload: Decodable {
+        let status: String
+        let capturedAt: Date?
+        let availableCount: Int?
+        let applicableAvailableCount: Int?
+        let credits: [Credit]?
+        let reason: String?
+    }
+
+    struct Credit: Decodable {
+        let id: String
+        let title: String
+        let status: String
+        let isSupportedByPlan: Bool
+        let grantedAt: Date?
+        let expiresAt: Date?
+    }
+
+    struct Window: Decodable {
+        let kind: QuotaWindowKind
+        let label: String
+        let usedPercent: Double?
+        let resetAt: Date?
+    }
+
+    func quotaObservations(from payload: Payload) -> [ProfileQuotaObservation] {
+        guard let profile = try? HermesProfileID(value: "hermes-usage-command") else {
+            return []
+        }
+        let observedAt = QuotaTimestamp(date: Date())
         return payload.providers.compactMap { _, provider in
             guard let subscription = Subscription(rawValue: provider.subscription) else {
                 return nil
@@ -69,8 +201,7 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
                           freshness: .live,
                           windows: windows,
                           source: source
-                      )
-                else {
+                      ) else {
                     result = .unavailable(.malformedSnapshot)
                     return try? ProfileQuotaObservation(
                         profile: profile,
@@ -91,7 +222,70 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
         }
     }
 
-    private func unavailableObservations(_ reason: QuotaUnavailableReason) -> [ProfileQuotaObservation] {
+    func manualResetResult(from payload: Payload) -> ManualResetReadResult {
+        guard let provider = payload.providers["openai-codex"] else {
+            return .unavailable(.sourceMissing)
+        }
+        switch provider.manualResets {
+        case .missing:
+            return .unavailable(.sourceMissing)
+        case .malformed:
+            return .unavailable(.malformedData)
+        case let .payload(payload):
+            guard payload.status == "available" else {
+                return .unavailable(manualResetUnavailableReason(payload.reason))
+            }
+            guard let availableCount = payload.availableCount,
+                  let applicableCount = payload.applicableAvailableCount,
+                  let rawCredits = payload.credits,
+                  let capturedAt = payload.capturedAt else {
+                return .unavailable(.malformedData)
+            }
+            do {
+                let credits = try rawCredits.map { raw in
+                    guard let status = ManualResetCreditStatus(rawValue: raw.status) else {
+                        throw ManualResetDomainError.invalidStatus
+                    }
+                    return try ManualResetCredit(
+                        identifier: raw.id,
+                        title: raw.title,
+                        status: status,
+                        isSupportedByPlan: raw.isSupportedByPlan,
+                        grantedAt: raw.grantedAt,
+                        expiresAt: raw.expiresAt
+                    )
+                }
+                return .snapshot(try ManualResetSnapshot(
+                    availableCount: availableCount,
+                    applicableAvailableCount: applicableCount,
+                    credits: credits,
+                    capturedAt: capturedAt
+                ))
+            } catch {
+                return .unavailable(.malformedData)
+            }
+        }
+    }
+
+    func manualResetUnavailableReason(_ reason: String?) -> ManualResetUnavailableReason {
+        let normalized = (reason ?? "").lowercased()
+        if normalized.contains("missing") {
+            return .sourceMissing
+        }
+        return .sourceUnavailable
+    }
+
+    func unavailableRead(
+        quota reason: QuotaUnavailableReason,
+        manualReset manualReason: ManualResetUnavailableReason
+    ) -> ProfileUsageRead {
+        ProfileUsageRead(
+            quotaObservations: unavailableObservations(reason),
+            manualReset: .unavailable(manualReason)
+        )
+    }
+
+    func unavailableObservations(_ reason: QuotaUnavailableReason) -> [ProfileQuotaObservation] {
         guard let profile = try? HermesProfileID(value: "hermes-usage-command") else { return [] }
         let observedAt = QuotaTimestamp(date: Date())
         return Subscription.allCases.compactMap {
@@ -102,54 +296,6 @@ struct HermesUsageCommandReader: ProfileQuotaSource, Sendable {
                 result: .unavailable(reason)
             )
         }
-    }
-}
-
-private extension HermesUsageCommandReader {
-    enum CommandFailure: Error {
-        case commandMissing
-        case authenticationFailed
-        case endpointUnavailable
-
-        var quotaReason: QuotaUnavailableReason {
-            switch self {
-            case .commandMissing: return .commandMissing
-            case .authenticationFailed: return .authenticationFailed
-            case .endpointUnavailable: return .endpointUnavailable
-            }
-        }
-    }
-
-
-    struct Payload: Decodable {
-        let version: Int?
-        let providers: [String: Provider]
-    }
-
-    struct Provider: Decodable {
-        let status: String
-        let subscription: String
-        let capturedAt: Date?
-        let windows: [Window]?
-        let reason: String?
-
-        var unavailableReason: QuotaUnavailableReason {
-            let normalized = (reason ?? "").lowercased()
-            if normalized.contains("auth") || normalized.contains("api key") || normalized.contains("401") || normalized.contains("403") {
-                return .authenticationFailed
-            }
-            if normalized.contains("endpoint") || normalized.contains("network") || normalized.contains("timeout") {
-                return .endpointUnavailable
-            }
-            return .sourceUnreadable
-        }
-    }
-
-    struct Window: Decodable {
-        let kind: QuotaWindowKind
-        let label: String
-        let usedPercent: Double?
-        let resetAt: Date?
     }
 
     func decode(_ data: Data) throws -> Payload {
@@ -187,7 +333,9 @@ private extension HermesUsageCommandReader {
         } catch {
             return .failure(.commandMissing)
         }
-        guard process.terminationStatus == 0 else { return .failure(.endpointUnavailable) }
+        guard process.terminationStatus == 0 else {
+            return .failure(.endpointUnavailable)
+        }
         return .success(output.fileHandleForReading.readDataToEndOfFile())
     }
 

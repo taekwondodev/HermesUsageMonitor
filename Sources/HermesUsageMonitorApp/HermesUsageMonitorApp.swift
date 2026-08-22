@@ -46,6 +46,7 @@ struct HermesUsageMonitorApp: App {
 @Observable
 private final class UsageViewModel {
     var subscriptions: [SubscriptionQuota]
+    var manualReset: ManualResetRefreshState = .unavailable
     var availability: RefreshAvailability = .waiting
     var updatedAt: QuotaTimestamp?
     var accountingBySubscription: [Subscription: [LocalAccounting]] = [:]
@@ -79,7 +80,11 @@ private final class UsageViewModel {
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
             : hermesHome
-        service = ProfileQuotaRefreshService(hermesHome: hermesHome)
+        service = ProfileQuotaRefreshService(
+            hermesHome: hermesHome,
+            observer: OSLogProfileQuotaRefreshObserver(),
+            manualResetObserver: OSLogManualResetRefreshObserver()
+        )
         resetService = QuotaResetNotificationService(notifier: MacOSQuotaResetNotifier())
         accountingService = LocalAccountingService(source: HermesStateDBAccountingReader(hermesHome: hermesRoot))
         subscriptions = Subscription.allCases.map {
@@ -108,6 +113,7 @@ private final class UsageViewModel {
         }
 
         subscriptions = state.subscriptions
+        manualReset = state.manualReset
         availability = state.availability
         updatedAt = state.updatedAt
         await resetService.process(state)
@@ -180,6 +186,7 @@ private final class UsageViewModel {
     private var currentRefreshState: SubscriptionRefreshState {
         SubscriptionRefreshState(
             subscriptions: subscriptions,
+            manualReset: manualReset,
             availability: availability,
             updatedAt: updatedAt
         )
@@ -238,6 +245,7 @@ private struct UsagePopoverView: View {
     let model: UsageViewModel
     let onTerminate: () -> Void
     @State private var expandedSubscriptions: Set<Subscription> = []
+    @State private var isManualResetExpanded = false
     @State private var orderedSubscriptions = SubscriptionOrderStore.load()
     @State private var draggedSubscription: Subscription?
     @State private var dropTarget: Subscription?
@@ -256,6 +264,7 @@ private struct UsagePopoverView: View {
                         subscription: subscription,
                         accounting: model.accountingBySubscription[subscription.subscription] ?? [],
                         accountingAvailability: model.accountingAvailability,
+                        manualReset: model.manualReset,
                         pendingQuotaRefreshWindows: model.pendingQuotaRefreshWindows,
                         uiNow: model.uiNow,
                         isAccountingExpanded: Binding(
@@ -267,6 +276,7 @@ private struct UsagePopoverView: View {
                                 )
                             }
                         ),
+                        isManualResetExpanded: $isManualResetExpanded,
                         onMove: moveSubscription
                     )
                     .onDrag {
@@ -317,6 +327,7 @@ private struct UsagePopoverView: View {
         .frame(width: 380)
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
         .onAppear {
+            isManualResetExpanded = false
             model.startUITimer()
         }
         .onDisappear {
@@ -413,9 +424,11 @@ private struct SubscriptionCard: View {
     let subscription: SubscriptionQuota
     let accounting: [LocalAccounting]
     let accountingAvailability: AccountingAvailability
+    let manualReset: ManualResetRefreshState
     let pendingQuotaRefreshWindows: Set<QuotaWindowReference>
     let uiNow: Date
     @Binding var isAccountingExpanded: Bool
+    @Binding var isManualResetExpanded: Bool
     let onMove: (Subscription, Int) -> Void
 
     var body: some View {
@@ -451,6 +464,33 @@ private struct SubscriptionCard: View {
                 snapshotContent(snapshot)
             case let .unavailable(reason):
                 unavailableContent(reason)
+            }
+
+            if subscription.subscription == .chatGPT {
+                DisclosureGroup(isExpanded: $isManualResetExpanded) {
+                    ManualResetSection(state: manualReset)
+                        .padding(.leading, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    HStack {
+                        Label("Reset manuale", systemImage: "arrow.counterclockwise")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if let countLabel = ManualResetDisplayModel(state: manualReset).countLabel {
+                            Text(countLabel)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityValue(
+                    ManualResetDisplayModel(state: manualReset).countLabel
+                        ?? "Stato reset non disponibile"
+                )
             }
 
             if accountingAvailability != .waiting {
