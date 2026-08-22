@@ -4,6 +4,7 @@ import SwiftUI
 
 enum ManualResetDesignToken {
     static let contentBackground = Color.primary.opacity(0.06)
+    static let expirationText = Color(nsColor: .tertiaryLabelColor)
     static let redeemTint = Color(
         red: 0.188_235_30,
         green: 0.819_607_85,
@@ -104,37 +105,41 @@ struct ManualResetSection: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.primaryLabel)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.primaryLabel)
+                        .font(.caption.weight(.semibold))
+
+                    if model.isStale {
+                        Text("Non aggiornato")
+                            .font(.caption2)
+                            .foregroundStyle(Color.orange)
+                    }
+
+                    if let applicabilityLabel = model.applicabilityLabel {
+                        Text(applicabilityLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("Riscatta") {}
                     .font(.caption.weight(.semibold))
-
-                if model.isStale {
-                    Text("Non aggiornato")
-                        .font(.caption2)
-                        .foregroundStyle(Color.orange)
-                }
-
-                if let applicabilityLabel = model.applicabilityLabel {
-                    Text(applicabilityLabel)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let expirationLabel = model.expirationLabel {
-                    Text(expirationLabel)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                    .buttonStyle(.borderedProminent)
+                    .tint(ManualResetDesignToken.redeemTint)
+                    .disabled(!model.isRedeemEnabled)
+                    .accessibilityHint("Riscatta il Full reset disponibile")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button("Riscatta") {}
-                .font(.caption.weight(.semibold))
-                .buttonStyle(.borderedProminent)
-                .tint(ManualResetDesignToken.redeemTint)
-                .disabled(!model.isRedeemEnabled)
-                .accessibilityHint("Riscatta il Full reset disponibile")
+            if let expirationLabel = model.expirationLabel {
+                Divider()
+
+                Text(expirationLabel)
+                    .font(.caption2)
+                    .foregroundStyle(ManualResetDesignToken.expirationText)
+            }
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
