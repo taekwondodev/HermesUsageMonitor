@@ -579,7 +579,16 @@ private struct SubscriptionCard: View {
             }
 
             if subscription.subscription == .chatGPT {
-                DisclosureGroup(isExpanded: $isManualResetExpanded) {
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { isManualResetExpanded },
+                        set: { newValue in
+                            withAnimation(PopoverSectionMotion.motion(reduceMotion: reduceMotion)) {
+                                isManualResetExpanded = newValue
+                            }
+                        }
+                    )
+                ) {
                     ManualResetSection(
                         state: manualReset,
                         flow: redemptionFlow,
@@ -606,7 +615,6 @@ private struct SubscriptionCard: View {
                         }
                     }
                 }
-                .popoverSectionExpansion(expanded: isManualResetExpanded, reduceMotion: reduceMotion)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Reset manuale")
@@ -615,7 +623,14 @@ private struct SubscriptionCard: View {
 
             if accountingAvailability != .waiting {
                 DisclosureGroup(
-                    isExpanded: $isAccountingExpanded
+                    isExpanded: Binding(
+                        get: { isAccountingExpanded },
+                        set: { newValue in
+                            withAnimation(PopoverSectionMotion.motion(reduceMotion: reduceMotion)) {
+                                isAccountingExpanded = newValue
+                            }
+                        }
+                    )
                 ) {
                     AccountingSection(
                         accounting: accounting
@@ -637,7 +652,6 @@ private struct SubscriptionCard: View {
                         }
                     }
                 }
-                .popoverSectionExpansion(expanded: isAccountingExpanded, reduceMotion: reduceMotion)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -884,7 +898,6 @@ enum PopoverLayout {
 }
 
 enum PopoverSectionMotion {
-    static let duration: TimeInterval = 0.2
     static let slide: CGFloat = 6
 
     static var transition: AnyTransition {
@@ -895,17 +908,13 @@ enum PopoverSectionMotion {
     }
 
     static func motion(reduceMotion: Bool) -> Animation? {
-        reduceMotion ? nil : .easeInOut(duration: duration)
+        reduceMotion ? nil : .default
     }
 }
 
 private extension View {
     func popoverSectionTransition() -> some View {
         transition(PopoverSectionMotion.transition)
-    }
-
-    func popoverSectionExpansion(expanded: Bool, reduceMotion: Bool) -> some View {
-        animation(PopoverSectionMotion.motion(reduceMotion: reduceMotion), value: expanded)
     }
 }
 
