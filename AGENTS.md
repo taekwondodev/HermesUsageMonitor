@@ -12,18 +12,19 @@
 
 ## Build & install
 
-Building and installing the app goes through the scripts under `./scripts`, never a raw
-`swift run`. The scripts are the single source of truth for how the `.app` bundle is
-assembled, bundled, signed, and verified.
+The Makefile in the repository root is the entry point for build and tooling commands
+(`make build`, `make verify`, `make check`, `make test`, `make clean`). Use it instead of
+calling scripts or `swift run` directly.
 
-- `./scripts/build-app.sh` — build the release executable, assemble `~/Applications/HermesUsageMonitor.app` (resources, Info.plist, bridge helper, asset catalog / app icon), ad-hoc sign, install, and launch. Use this to build and install the app.
-- `./scripts/verify-installed-app.sh` — verify an installed app bundle is complete and correctly signed, then launch it. Use this to confirm an install.
-- `./scripts/verify-hermes-compatibility.py` — check the Hermes update-to-app compatibility path without mutating Hermes state.
-- `./scripts/hermes_usage_bridge.py` + `./scripts/hermes-usage-bridge` — the bridge helper shipped into the app bundle.
-- `./scripts/Info.plist` — template used by `build-app.sh`.
+It is a thin wrapper: each target delegates to the scripts under `./scripts` or to a
+standard SwiftPM command. Those scripts remain the single source of truth for how the
+`.app` bundle is assembled, bundled, signed, and verified — the Makefile never duplicates
+build logic and never introduces a parallel path.
 
-For quick compile/test iteration the SwiftPM commands still work (`swift build`, `swift test`),
-but whenever the delivered `.app` is involved, route through the scripts above.
+- `./scripts/` — holds the scripts and templates that back the Makefile targets (app
+  build/install, installed-app verification, Hermes compatibility check), plus the bridge
+  helper (`hermes_usage_bridge.py` + `hermes-usage-bridge`) and `Info.plist` shipped into
+  the app bundle.
 
 ## Dev cycle
 
