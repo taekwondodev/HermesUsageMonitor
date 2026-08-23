@@ -31,6 +31,29 @@ def hermes_executable() -> pathlib.Path | None:
     return next((path for path in candidates if path.is_file() and os.access(path, os.X_OK)), None)
 
 
+def hermes_checkout() -> pathlib.Path | None:
+    candidates: list[pathlib.Path] = [HERMES_ROOT / "hermes-agent", pathlib.Path.home() / ".hermes" / "hermes-agent"]
+    for directory in os.environ.get("HERMES_HOME", "").split(os.pathsep):
+        candidates.append(pathlib.Path(directory).expanduser() / "hermes-agent")
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        if (candidate / "agent" / "account_usage.py").is_file():
+            return candidate
+    return None
+
+
+def checkout_venv_python(checkout: pathlib.Path) -> pathlib.Path | None:
+    for name in ("venv/bin/python", "venv/bin/python3"):
+        candidate = checkout / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
 def digest(path: pathlib.Path) -> str | None:
     if not path.is_file():
         return None
@@ -73,34 +96,40 @@ def main() -> int:
         }
 
         command_env = {**os.environ, "HERMES_HOME": str(HERMES_ROOT)}
-        usage_code, usage_output = run(
-            [str(executable), "usage", "--json", *sum((["--provider", provider] for provider in PROVIDERS), [])],
-            env=command_env,
-        )
-        if usage_code == 0:
-            try:
-                payload = json.loads(usage_output)
-                for provider in PROVIDERS:
-                    value = payload.get("providers", {}).get(provider, {})
-                    report["providers"][provider] = {
-                        "status": value.get("status", "unavailable"),
-                        "subscription": value.get("subscription"),
-                        "windows": [
-                            {
-                                "kind": window.get("kind"),
-                                "label": window.get("label"),
-                                "usedPercent": window.get("usedPercent"),
-                                "resetAt": window.get("resetAt"),
-                            }
-                            for window in value.get("windows", [])
-                        ],
-                        "reason": value.get("reason"),
-                    }
-                report["usage"] = {"status": "available"}
-            except (ValueError, AttributeError):
-                report["usage"] = {"status": "unavailable", "reason": "malformedPayload"}
+        bridge = PROJECT_ROOT / "scripts" / "hermes_usage_bridge.py"
+        checkout = hermes_checkout()
+        venv_python = checkout_venv_python(checkout) if checkout else None
+        if venv_python is None:
+            report["usage"] = {"status": "unavailable", "reason": "checkoutMissing"}
         else:
-            report["usage"] = {"status": "unavailable", "reason": "commandFailed"}
+            usage_code, usage_output = run(
+                [str(venv_python), str(bridge), "--json", "--hermes-root", str(checkout)],
+                env=command_env,
+            )
+            if usage_code == 0:
+                try:
+                    payload = json.loads(usage_output)
+                    for provider in PROVIDERS:
+                        value = payload.get("providers", {}).get(provider, {})
+                        report["providers"][provider] = {
+                            "status": value.get("status", "unavailable"),
+                            "subscription": value.get("subscription"),
+                            "windows": [
+                                {
+                                    "kind": window.get("kind"),
+                                    "label": window.get("label"),
+                                    "usedPercent": window.get("usedPercent"),
+                                    "resetAt": window.get("resetAt"),
+                                }
+                                for window in value.get("windows", [])
+                            ],
+                            "reason": value.get("reason"),
+                        }
+                    report["usage"] = {"status": "available"}
+                except (ValueError, AttributeError):
+                    report["usage"] = {"status": "unavailable", "reason": "malformedPayload"}
+            else:
+                report["usage"] = {"status": "unavailable", "reason": "commandFailed"}
 
     test_code, _ = run(["swift", "test"])
     build_code, _ = run(["swift", "build", "-c", "release"])
