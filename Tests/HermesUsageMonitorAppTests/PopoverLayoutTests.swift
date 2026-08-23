@@ -12,6 +12,14 @@ struct HermesUsageMonitorAppTests {
         #expect(PopoverLayout.minimumHeight <= PopoverLayout.maximumHeight)
     }
 
+    @Test("scroll gutter reserves ~16pt so the overlay scrollbar clears the cards")
+    func scrollGutterClearsCards() {
+        // Expected value is the user's grilling decision (spec acceptance): a ~16pt
+        // gutter between the card edge and the overlay scrollbar, matching the reference.
+        #expect(PopoverLayout.scrollGutter == 16)
+        #expect(PopoverLayout.scrollGutter > 0)
+    }
+
     @Test("accounting display blocks preserve model metrics and missing values")
     func accountingDisplayBlocksPreserveModelMetrics() throws {
         let items = try [
