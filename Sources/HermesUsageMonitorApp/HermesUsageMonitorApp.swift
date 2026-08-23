@@ -528,6 +528,8 @@ private struct SubscriptionCard: View {
     let pendingQuotaRefreshWindows: Set<QuotaWindowReference>
     let uiNow: Date
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var accessibilitySummary: String {
         let model = ManualResetDisplayModel(state: manualReset)
         var parts = [model.headerCountLabel ?? "Stato reset non disponibile"]
@@ -588,6 +590,7 @@ private struct SubscriptionCard: View {
                         onDismiss: onDismissRedemption
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .popoverSectionTransition()
                 } label: {
                     HStack {
                         Label("Reset manuale", systemImage: "arrow.counterclockwise")
@@ -603,6 +606,7 @@ private struct SubscriptionCard: View {
                         }
                     }
                 }
+                .popoverSectionExpansion(expanded: isManualResetExpanded, reduceMotion: reduceMotion)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Reset manuale")
@@ -617,6 +621,7 @@ private struct SubscriptionCard: View {
                         accounting: accounting
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .popoverSectionTransition()
                 } label: {
                     HStack {
                         Label("Uso osservato da Hermes", systemImage: "umbrella.fill")
@@ -632,6 +637,7 @@ private struct SubscriptionCard: View {
                         }
                     }
                 }
+                .popoverSectionExpansion(expanded: isAccountingExpanded, reduceMotion: reduceMotion)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -875,6 +881,32 @@ enum PopoverLayout {
     static let minimumHeight: CGFloat = 500
     static let idealHeight: CGFloat = 560
     static let maximumHeight: CGFloat = 700
+}
+
+enum PopoverSectionMotion {
+    static let duration: TimeInterval = 0.2
+    static let slide: CGFloat = 6
+
+    static var transition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .offset(y: slide)),
+            removal: .opacity.combined(with: .offset(y: -slide))
+        )
+    }
+
+    static func motion(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .easeInOut(duration: duration)
+    }
+}
+
+private extension View {
+    func popoverSectionTransition() -> some View {
+        transition(PopoverSectionMotion.transition)
+    }
+
+    func popoverSectionExpansion(expanded: Bool, reduceMotion: Bool) -> some View {
+        animation(PopoverSectionMotion.motion(reduceMotion: reduceMotion), value: expanded)
+    }
 }
 
 enum SubscriptionOrderStore {
