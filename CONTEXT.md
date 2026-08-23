@@ -37,3 +37,7 @@ The app treats Hermes and provider quota data as read-only observations. Local t
 - The menu bar composition is a dominant robust outline H with one large four-point outline sparkle on the left, without a ring, background, gradient, glow, or secondary sparkle.
 - The menu bar sparkle has the same effective height as the H, with clear optical separation from the H.
 - The H keeps robust bars and a long horizontal crossbar; the mark is wider than tall since horizontal expansion is preferred over compressing the mark into a square.
+
+## Popover layout terms
+
+- **Scroll affordance**: the popover signals that a list scrolls by clipping the last row at the bottom edge (the macOS HIG affordance when no scroll bar is shown), because the scroll bar is never shown. The content keeps a uniform symmetric 16pt margin from the window edge, so it reads balanced and never touches the edge while scrolling (see `docs/adr/0006-scroll-affordance-via-hidden-scrollbar.md`).

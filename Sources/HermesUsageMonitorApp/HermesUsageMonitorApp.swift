@@ -417,7 +417,7 @@ private struct UsagePopoverView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .contentMargins(.trailing, PopoverLayout.scrollGutter, for: .scrollContent)
+        .scrollIndicators(.hidden)
         .padding(16)
         .frame(width: 380)
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
@@ -875,7 +875,6 @@ enum PopoverLayout {
     static let minimumHeight: CGFloat = 500
     static let idealHeight: CGFloat = 560
     static let maximumHeight: CGFloat = 700
-    static let scrollGutter: CGFloat = 16
 }
 
 enum SubscriptionOrderStore {
