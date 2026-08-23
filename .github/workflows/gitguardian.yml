@@ -1,0 +1,59 @@
+name: GitGuardian Secrets Scan
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  tree-gate:
+    name: Blocking tree scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install ggshield
+        run: pip install --quiet ggshield
+
+      - name: Scan working tree (gate)
+        run: ggshield secret scan path . --recursive
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+      - name: Emit SARIF (informational)
+        if: always()
+        run: |
+          ggshield secret scan path . --recursive \
+            --format sarif --output gitguardian.sarif \
+            || true
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+      - name: Upload SARIF to code scanning
+        if: hashFiles('gitguardian.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gitguardian.sarif
+          category: gitguardian
+
+  history-report:
+    name: Non-blocking history scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install ggshield
+        run: pip install --quiet ggshield
+
+      - name: Scan full history (informational)
+        continue-on-error: true
+        run: ggshield secret scan repo .
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}

@@ -13,7 +13,7 @@ ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # Bare `make` (no target) must never trigger build/install implicitly.
 .DEFAULT_GOAL := help
 
-.PHONY: build verify check test clean help
+.PHONY: build verify check test clean help push-and-watch
 
 # Build, assemble, sign, install and launch ~/Applications/HermesUsageMonitor.app.
 build:
@@ -35,12 +35,17 @@ test:
 clean:
 	cd "$(ROOT)" && swift package clean
 
+# Push main and block until the GitGuardian CI run for that push finishes (exit status propagates).
+push-and-watch:
+	"$(ROOT)scripts/push-and-watch.sh"
+
 # List available targets.
 help:
 	@echo "HermesUsageMonitor targets (thin wrapper over ./scripts + SwiftPM):"
-	@echo "  build    assemble, sign, install and launch the app (build-app.sh)"
-	@echo "  verify   check an installed app bundle, then launch it"
-	@echo "  check    verify Hermes update-to-app compatibility"
-	@echo "  test     run the SwiftPM test suite"
-	@echo "  clean    remove SwiftPM build artifacts (.build only)"
-	@echo "  help     this list"
+	@echo "  build          assemble, sign, install and launch the app (build-app.sh)"
+	@echo "  verify         check an installed app bundle, then launch it"
+	@echo "  check          verify Hermes update-to-app compatibility"
+	@echo "  test           run the SwiftPM test suite"
+	@echo "  clean          remove SwiftPM build artifacts (.build only)"
+	@echo "  push-and-watch push main and wait for the GitGuardian CI run"
+	@echo "  help           this list"

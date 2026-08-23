@@ -9,6 +9,7 @@
 - Use the existing Swift package structure and bounded context unless a design decision explicitly changes it.
 - Use GitHub Issues through `gh` for specifications, tickets, dependencies, comments, and closure.
 - Close implementation tickets only after code review passes and the commit lands.
+- Push to main only through `make push-and-watch`: never bypass it with a bare `git push` to main.
 
 ## Build & install
 
