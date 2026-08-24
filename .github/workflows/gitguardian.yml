@@ -19,14 +19,14 @@ jobs:
         run: pip install --quiet ggshield
 
       - name: Scan working tree (gate)
-        run: ggshield secret scan path . --recursive
+        run: ggshield secret scan path . --recursive --yes
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
       - name: Emit SARIF (informational)
         if: always()
         run: |
-          ggshield secret scan path . --recursive \
+          ggshield secret scan path . --recursive --yes \
             --format sarif --output gitguardian.sarif \
             || true
         env:
@@ -34,6 +34,7 @@ jobs:
 
       - name: Upload SARIF to code scanning
         if: hashFiles('gitguardian.sarif') != ''
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gitguardian.sarif
