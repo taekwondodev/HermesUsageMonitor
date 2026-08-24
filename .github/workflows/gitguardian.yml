@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v7
 
@@ -18,9 +19,25 @@ jobs:
         run: pip install --quiet ggshield
 
       - name: Scan working tree (gate)
-        run: ggshield secret scan path . --recursive --yes
+        run: |
+          set +e
+          ggshield secret scan path . --recursive --yes \
+            --format json --output gitguardian-scan.json
+          status=$?
+          set -e
+          if [[ $status -ne 0 ]]; then
+            echo "::error::Secrets detected in working tree. Download the 'gitguardian-findings' artifact for the JSON report."
+            exit $status
+          fi
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+      - name: Upload scan findings (JSON)
+        if: failure() && hashFiles('gitguardian-scan.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitguardian-findings
+          path: gitguardian-scan.json
 
   history-report:
     name: Non-blocking history scan

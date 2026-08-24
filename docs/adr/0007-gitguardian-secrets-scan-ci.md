@@ -37,10 +37,12 @@ nothing). `--yes` is required for the gate to actually scan.
 
 No SARIF is produced and nothing is uploaded to GitHub code scanning. Enabled code scanning
 is not available on this private repository without a GitHub Code Security license the
-account does not have, so the Security-tab integration is dropped. Findings are reviewed in
-the GitGuardian dashboard, which is fed by the same API key and needs no GitHub license.
-Both jobs thus request `contents: read` only (least privilege); no `security-events: write`
-is granted to any job.
+account does not have, so the Security-tab integration is dropped. Instead, when the gate
+finds secrets it writes a JSON report and uploads it as a workflow artifact
+(`gitguardian-findings`), because the GitGuardian web dashboard is not usable from this
+account. Neither job requests `security-events: write`; the gate job requests `contents:
+read` plus `actions: write` (the artifact upload needs the latter), and the history job
+requests `contents: read` only.
 
 The API key is read from the repository secret `GITGUARDIAN_API_KEY`; it is never committed,
 logged, or surfaced in output.
