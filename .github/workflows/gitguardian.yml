@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v7
 
@@ -22,23 +21,6 @@ jobs:
         run: ggshield secret scan path . --recursive --yes
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
-
-      - name: Emit SARIF (informational)
-        if: always()
-        run: |
-          ggshield secret scan path . --recursive --yes \
-            --format sarif --output gitguardian.sarif \
-            || true
-        env:
-          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
-
-      - name: Upload SARIF to code scanning
-        if: hashFiles('gitguardian.sarif') != ''
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: gitguardian.sarif
-          category: gitguardian
 
   history-report:
     name: Non-blocking history scan

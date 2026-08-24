@@ -26,11 +26,21 @@ main and on manual dispatch. It has two jobs:
   scan of the current working tree. Any detected secret fails the run. This is the gate the
   push loop watches.
 - A non-blocking job that checks out full history (full depth) and scans the whole
-  repository history, reporting the result without failing the run.
+  repository history, reporting the result without failing the run. It uses
+  `continue-on-error`, so a real scan failure or a historical secret never turns the run
+  red.
 
-The blocking job also emits a SARIF file and uploads it as GitHub code scanning in the
-Security tab. The workflow token grants `security-events: write` to that job only, paired
-with `contents: read`; the history job requests `contents: read` only (least privilege).
+The blocking job runs the recursive path scan with `--yes`, because a recursive scan with
+more than one file otherwise asks for confirmation and, in the non-interactive CI shell,
+that prompt interrupts the scan before it starts (the run would pass green having scanned
+nothing). `--yes` is required for the gate to actually scan.
+
+No SARIF is produced and nothing is uploaded to GitHub code scanning. Enabled code scanning
+is not available on this private repository without a GitHub Code Security license the
+account does not have, so the Security-tab integration is dropped. Findings are reviewed in
+the GitGuardian dashboard, which is fed by the same API key and needs no GitHub license.
+Both jobs thus request `contents: read` only (least privilege); no `security-events: write`
+is granted to any job.
 
 The API key is read from the repository secret `GITGUARDIAN_API_KEY`; it is never committed,
 logged, or surfaced in output.
@@ -45,8 +55,8 @@ the exit status propagates to the caller. It performs no additional local checks
 
 - Secrets in the pushed tree fail the CI run; a fix commit that removes the secret flips the
   gate green again without any history rewrite.
-- Historical secrets are surfaced in code scanning but can never hold the run red
-  permanently.
+- Historical secrets are surfaced in the GitGuardian dashboard but can never hold the run
+  red permanently.
 - The agent drives the loop with a single command and reads the outcome from its exit code.
 - Activation depends on the `GITGUARDIAN_API_KEY` repository secret being set and on the
   workflow being valid; the main branch remains unprotected, so a manual dispatch can
