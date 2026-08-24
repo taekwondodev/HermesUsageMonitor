@@ -26,7 +26,7 @@ The section's source of truth is the Figma component **`reset-manuale-sections`*
 - **Card - Enabled**: applicable credit available; "Utilizzabile ora"; green enabled button.
 - **Card - No Reset**: zero resets; "Full reset non disponibile" with no secondary labels.
 
-Exact values implemented in `ManualResetSection` + `ManualResetDesignToken`:
+The app intentionally keeps the Figma component unchanged but uses a local disabled-button treatment that better matches the app's visual language and macOS disabled-control conventions. Exact values implemented in `ManualResetSection` + `ManualResetDesignToken`:
 
 | Element | Value |
 | --- | --- |
@@ -37,14 +37,14 @@ Exact values implemented in `ManualResetSection` + `ManualResetDesignToken`:
 | Expiration label | `.font(.caption2)` + `expirationLabelColor` (`.tertiary`), a step below `.secondary` so it reads darker than "Utilizzabile ora" |
 | Stale label ("Non aggiornato") | `.caption2` + `.orange` |
 | Redeem button | green `#30D158` (0.188, 0.820, 0.345), white label |
-| Disabled button | same fill, white label at 40% |
+| Disabled button | adaptive `Color.primary.opacity(0.10)` fill, semantic tertiary label |
 | Expanded content insets | `.vertical` 6, `.horizontal` 8 — same as accounting blocks |
 
 The card uses the **same fonts, sizes, and colors as the accounting card** (`AccountingDetail`): a `.caption.weight(.semibold)` primary label, `.caption2` `.secondary` secondary lines, the identical `Color.primary.opacity(0.06)` rounded-8 surface, and the same 6/8 insets. It follows `AccountingDetail`'s vertical rhythm once more by splitting the card across a `Divider()`: the row above the divider holds the primary label, the stale/applicability lines, and the vertically-centered Riscatta button on the right (`flex items-center justify-between`); the row below the divider holds only the expiration label. The expiration is rendered in `expirationLabelColor` (`.tertiary`, the same subordinate metadata tier as the "Snapshot acquisito" line) so it sits a step below the `.secondary` "Utilizzabile ora" line and reads darker/subordinate. The original `ManualResetDesignToken` color/font overrides (custom `Color.white`, `#8E8E93`, custom text tokens) were removed so the two cards share one typographic language. The app does not force a color scheme, and all card text uses adaptive semantic colors, so it stays legible in both appearances.
 
 The top row above the divider mirrors `AccountingDetail`'s header: the primary label, stale/applicability lines, and the Riscatta button vertically centered on the right (the Figma `justify-between` contract). This keeps the button horizontally aligned with the text instead of dropping to the bottom of the card.
 
-The manual reset card and its disclosure header carry the **same colors, spacing, and left alignment as the "Uso osservato da Hermes" section**: the identical `Color.primary.opacity(0.06)` rounded-8 surface and insets, no extra leading indent on the expanded card, a header that is a `Label` with the SF symbol `arrow.counterclockwise` styled `.caption.weight(.semibold)` in `.secondary` (same treatment as the `umbrella.fill` header), and a disclosure chevron that is not separately tinted (the accounting section applies no tint either), so both chevrons render identically. The two expandable sections align to the same left edge inside the popover. The surface intentionally does not reproduce the literal Figma hex.
+The manual reset card and its disclosure header carry the **same colors, spacing, and left alignment as the "Uso osservato da Hermes" section**: the identical `Color.primary.opacity(0.06)` rounded-8 surface and insets, no extra leading indent on the expanded card, a header that is a `Label` with the SF symbol `arrow.counterclockwise` styled `.caption.weight(.semibold)` in `.secondary` (same treatment as the `umbrella.fill` header), and a disclosure chevron that is not separately tinted (the accounting section applies no tint either), so both chevrons render identically. The enabled redeem button remains green `#30D158`; the local disabled implementation keeps its native filled shape but switches to adaptive `Color.primary.opacity(0.10)` with semantic tertiary label treatment so it reads as present but unavailable without retaining the enabled action accent. The surface intentionally does not reproduce the literal Figma hex.
 
 ### Manual reset expansion state survives popover reopen
 

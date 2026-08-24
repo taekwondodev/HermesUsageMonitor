@@ -10,6 +10,7 @@ enum ManualResetDesignToken {
         green: 0.819_607_85,
         blue: 0.345_098_05
     )
+    static let disabledRedeemTint = Color.primary.opacity(0.10)
     static let cornerRadius: CGFloat = 8
 }
 
@@ -146,10 +147,21 @@ struct ManualResetSection: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button("Riscatta", action: onRedeem)
+                Button(action: onRedeem) {
+                    Text("Riscatta")
+                        .foregroundStyle(
+                            canRedeem
+                                ? Color.white
+                                : Color(nsColor: .tertiaryLabelColor)
+                        )
+                }
                     .font(.caption.weight(.semibold))
                     .buttonStyle(.borderedProminent)
-                    .tint(ManualResetDesignToken.redeemTint)
+                    .tint(
+                        canRedeem
+                            ? ManualResetDesignToken.redeemTint
+                            : ManualResetDesignToken.disabledRedeemTint
+                    )
                     .disabled(!canRedeem)
                     .accessibilityHint("Riscatta il Full reset disponibile")
             }
