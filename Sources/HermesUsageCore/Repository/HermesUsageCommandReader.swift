@@ -193,8 +193,10 @@ private extension HermesUsageCommandReader {
             return []
         }
         let observedAt = QuotaTimestamp(date: Date())
-        return payload.providers.compactMap { _, provider in
-            guard let subscription = Subscription(rawValue: provider.subscription) else {
+        return payload.providers.compactMap { providerID, provider in
+            guard let subscription = Subscription(rawValue: provider.subscription),
+                  (providerID == "openai-codex" && subscription == .chatGPT)
+                    || (providerID == "opencode-go" && subscription == .opencodeGo) else {
                 return nil
             }
 
@@ -203,6 +205,9 @@ private extension HermesUsageCommandReader {
                 result = .unavailable(provider.unavailableReason)
             } else {
                 let windows = (provider.windows ?? []).compactMap { window -> QuotaWindow? in
+                    if subscription != .chatGPT, case .opaque = window.kind {
+                        return nil
+                    }
                     guard let usedPercent = window.usedPercent else { return nil }
                     return try? QuotaWindow(
                         kind: window.kind,
@@ -242,7 +247,8 @@ private extension HermesUsageCommandReader {
     }
 
     func manualResetResult(from payload: Payload) -> ManualResetReadResult {
-        guard let provider = payload.providers["openai-codex"] else {
+        guard let provider = payload.providers["openai-codex"],
+              provider.subscription == "chatgpt" else {
             return .unavailable(.sourceMissing)
         }
         switch provider.manualResets {

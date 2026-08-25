@@ -63,7 +63,10 @@ private extension HermesQuotaSnapshotReader {
             }
 
             let mappedWindows = try windows.map { window in
-                try QuotaWindow(
+                guard subscription == .chatGPT || !isUnknown(window.kind) else {
+                    throw QuotaDomainError.invalidSnapshot
+                }
+                return try QuotaWindow(
                     kind: window.kind,
                     label: window.label,
                     usedPercent: window.usedPercent,
@@ -78,6 +81,11 @@ private extension HermesQuotaSnapshotReader {
                 windows: mappedWindows,
                 source: try QuotaSource(identifier: source)
             )
+        }
+
+        private func isUnknown(_ kind: QuotaWindowKind) -> Bool {
+            if case .opaque = kind { return true }
+            return false
         }
     }
 

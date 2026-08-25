@@ -56,6 +56,58 @@ struct QuotaDomainTests {
         )
     }
 
+    @Test("ChatGPT displays known windows before unknown windows in provider order")
+    func chatGPTDisplayOrderKeepsUnknownWindows() throws {
+        let unknownA = try QuotaWindow(
+            kind: try .unknown("rolling-7d"), label: "Longer window", usedPercent: 10
+        )
+        let unknownB = try QuotaWindow(
+            kind: try .unknown("experimental"), label: "Experimental", usedPercent: 80
+        )
+        let windows = try [
+            unknownA,
+            QuotaWindow(kind: .weekly, label: "Weekly", usedPercent: 20),
+            unknownB,
+            QuotaWindow(kind: .rollingFiveHours, label: "5 hours", usedPercent: 30)
+        ]
+
+        #expect(
+            QuotaWindowDisplayOrder.windows(for: .chatGPT, windows: windows).map(\.kind) == [
+                .rollingFiveHours,
+                .weekly,
+                try .unknown("rolling-7d"),
+                try .unknown("experimental")
+            ]
+        )
+    }
+
+    @Test("unknown quota window kinds preserve their wire identity")
+    func preservesUnknownKindIdentity() throws {
+        let kind = try QuotaWindowKind.unknown("rolling-7d")
+        let data = Data("\"rolling-7d\"".utf8)
+        let decoded = try JSONDecoder().decode(QuotaWindowKind.self, from: data)
+
+        #expect(decoded == kind)
+        #expect(kind.rawValue == "rolling-7d")
+        #expect((try JSONEncoder().encode(kind)) == data)
+    }
+
+    @Test("rejects invalid opaque quota window identities")
+    func rejectsInvalidOpaqueIdentity() {
+        #expect(throws: QuotaDomainError.invalidSnapshot) {
+            _ = try QuotaWindowOpaqueKind(" \n")
+        }
+        #expect(throws: QuotaDomainError.invalidSnapshot) {
+            _ = try QuotaWindowOpaqueKind(String(repeating: "x", count: 201))
+        }
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder().decode(
+                QuotaWindowOpaqueKind.self,
+                from: Data("\"\\n\"".utf8)
+            )
+        }
+    }
+
     @Test("accepts a finite percentage inside the quota range")
     func acceptsValidWindow() throws {
         let resetAt = Date(timeIntervalSince1970: 1_900_000_000)

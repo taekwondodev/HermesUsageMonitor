@@ -39,8 +39,43 @@ class HermesUsageBridgeTests(unittest.TestCase):
         self.assertEqual(result.payload["status"], "available")
         self.assertEqual(result.payload["subscription"], "chatgpt")
         self.assertEqual(result.payload["windows"][0]["kind"], "rolling-5h")
+        self.assertEqual(result.payload["windows"][0]["label"], "5 hours")
         self.assertEqual(result.payload["windows"][0]["usedPercent"], 40.0)
         self.assertEqual(result.payload["windows"][1]["kind"], "weekly")
+
+    def test_worker_preserves_unknown_chatgpt_windows_and_disambiguates_duplicates(self):
+        result = self.run_openai_worker([])
+
+        self.assertEqual(
+            [(window["kind"], window["label"]) for window in result["windows"]],
+            [
+                ("rolling-5h", "5 hours"),
+                ("rolling-7d", "Weekly"),
+                ("rolling-7d#2", "Longer window copy"),
+                ("rolling-7d#2#2", "Collision kind"),
+                ("experimental", "Experimental"),
+            ],
+        )
+
+    def test_worker_preserves_unknown_technical_kind_verbatim(self):
+        result = bridge.snapshot_payload(
+            "openai-codex",
+            "chatgpt",
+            SimpleNamespace(
+                source="usage_api",
+                fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
+                plan=None,
+                unavailable_reason=None,
+                windows=(SimpleNamespace(
+                    kind="FutureWindow",
+                    label="Future window",
+                    used_percent=10.0,
+                    reset_at=None,
+                    detail=None,
+                ),),
+            ),
+        )
+        self.assertEqual(result.payload["windows"][0]["kind"], "FutureWindow")
 
     def test_manual_reset_contract_through_worker_process(self):
         positive = self.run_openai_worker([
@@ -122,6 +157,86 @@ class HermesUsageBridgeTests(unittest.TestCase):
         self.assertEqual(result.payload["windows"][0]["kind"], "rolling-5h")
         self.assertEqual(result.payload["windows"][0]["usedPercent"], 12.5)
 
+    def test_opencode_technical_kind_precedes_conflicting_label(self):
+        snapshot = SimpleNamespace(
+            source="usage_api",
+            fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
+            plan=None,
+            unavailable_reason=None,
+            windows=(SimpleNamespace(
+                kind="rolling-5h",
+                label="Weekly",
+                used_percent=12.5,
+                reset_at=None,
+                detail=None,
+            ),),
+        )
+        result = bridge.snapshot_payload("opencode-go", "opencode-go", snapshot)
+        self.assertEqual(result.payload["windows"][0]["kind"], "rolling-5h")
+
+    def test_opencode_windows_shape_canonicalizes_rolling_label(self):
+        class Response:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"windows": [{
+                    "kind": "rolling",
+                    "label": "rolling",
+                    "usedPercent": 12.5,
+                    "resetAt": "2030-03-17T17:00:00Z",
+                }]}
+
+        class Client:
+            def __init__(self, **_kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                pass
+
+            def get(self, *_args, **_kwargs):
+                return Response()
+
+        api = bridge.UsageAPI(
+            fetch_account_usage=lambda _provider: None,
+            resolve_runtime_provider=lambda **_kwargs: {"api_key": "[REDACTED]", "base_url": "https://example.invalid"},
+            httpx=SimpleNamespace(Client=Client),
+        )
+        result = bridge.opencode_snapshot(api)
+        self.assertEqual(result.windows[0].kind, "rolling-5h")
+        self.assertEqual(result.windows[0].label, "5 hours")
+
+    def test_opencode_windows_shape_rejects_empty_technical_kind(self):
+        class Response:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"windows": [{"kind": "", "label": "Weekly", "usedPercent": 10.0}]}
+
+        class Client:
+            def __init__(self, **_kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                pass
+
+            def get(self, *_args, **_kwargs):
+                return Response()
+
+        api = bridge.UsageAPI(
+            fetch_account_usage=lambda _provider: None,
+            resolve_runtime_provider=lambda **_kwargs: {"api_key": "[REDACTED]", "base_url": "https://example.invalid"},
+            httpx=SimpleNamespace(Client=Client),
+        )
+        self.assertIsNone(bridge.opencode_snapshot(api))
+
     def test_unknown_window_becomes_unavailable(self):
         snapshot = SimpleNamespace(
             source="usage_api", fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
@@ -141,6 +256,23 @@ class HermesUsageBridgeTests(unittest.TestCase):
         result = bridge.snapshot_payload("opencode-go", "opencode-go", snapshot)
         self.assertEqual(result.payload["status"], "unavailable")
         self.assertEqual(result.payload["reason"], "quota unavailable")
+
+    def test_empty_technical_kind_does_not_fall_back_to_label(self):
+        snapshot = SimpleNamespace(
+            source="usage_api",
+            fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
+            plan=None,
+            unavailable_reason=None,
+            windows=(SimpleNamespace(
+                kind="",
+                label="Weekly",
+                used_percent=10.0,
+                reset_at=None,
+                detail=None,
+            ),),
+        )
+        result = bridge.snapshot_payload("openai-codex", "chatgpt", snapshot)
+        self.assertEqual(result.payload["status"], "unavailable")
 
     def test_provider_failure_is_sanitized(self):
         def fail(_provider):
@@ -369,12 +501,41 @@ class HermesUsageBridgeTests(unittest.TestCase):
                         fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
                         plan="Plus",
                         unavailable_reason=None,
-                        windows=(SimpleNamespace(
-                            label="Session",
-                            used_percent=40.0,
-                            reset_at=None,
-                            detail=None,
-                        ),),
+                        windows=(
+                            SimpleNamespace(
+                                label="Session",
+                                used_percent=40.0,
+                                reset_at=None,
+                                detail=None,
+                            ),
+                            SimpleNamespace(
+                                kind="rolling-7d",
+                                label="Weekly",
+                                used_percent=25.0,
+                                reset_at=None,
+                                detail=None,
+                            ),
+                            SimpleNamespace(
+                                kind="rolling-7d",
+                                label="Longer window copy",
+                                used_percent=20.0,
+                                reset_at=None,
+                                detail=None,
+                            ),
+                            SimpleNamespace(
+                                kind="rolling-7d#2",
+                                label="Collision kind",
+                                used_percent=15.0,
+                                reset_at=None,
+                                detail=None,
+                            ),
+                            SimpleNamespace(
+                                label="Experimental",
+                                used_percent=10.0,
+                                reset_at=None,
+                                detail=None,
+                            ),
+                        ),
                     )
             """)
             (root / "agent" / "account_usage.py").write_text(

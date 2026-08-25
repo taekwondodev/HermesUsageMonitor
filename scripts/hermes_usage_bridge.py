@@ -127,7 +127,7 @@ def load_usage_api(root: Path) -> UsageAPI:
 
 def classify_window(label: str) -> str | None:
     normalized = " ".join(label.strip().lower().split())
-    if normalized in {"session", "5 hours", "5 hour", "rolling", "rolling 5h", "rolling 5 hours"}:
+    if normalized in {"session", "5 hours", "5 hour", "rolling", "rolling 5h", "rolling 5 hours", "rolling-5h"}:
         return "rolling-5h"
     if normalized in {"daily", "day", "today"}:
         return "daily"
@@ -138,11 +138,42 @@ def classify_window(label: str) -> str | None:
     return None
 
 
-def window_payload(window: Any) -> dict[str, Any] | None:
+def normalize_identifier(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def valid_window_label(label: str) -> bool:
+    return bool(label) and len(label) <= 200 and not any(
+        ord(character) < 0x20 or 0x7F <= ord(character) <= 0x9F
+        for character in label
+    )
+
+
+def window_payload(window: Any, subscription: str) -> dict[str, Any] | None:
     label = str(getattr(window, "label", "") or "").strip()
-    kind = classify_window(label)
-    if not label or kind is None:
+    if not valid_window_label(label):
         return None
+    raw_technical_kind = getattr(window, "kind", None)
+    if raw_technical_kind is None:
+        raw_technical_kind = getattr(window, "type", None)
+    has_technical_kind = raw_technical_kind is not None
+    raw_technical_kind = str(raw_technical_kind or "")
+    technical_kind = normalize_identifier(raw_technical_kind)
+    if has_technical_kind:
+        if not technical_kind or not valid_window_label(raw_technical_kind):
+            return None
+        kind = classify_window(technical_kind)
+        if kind is None and subscription != "chatgpt":
+            return None
+        kind = kind or raw_technical_kind
+    elif subscription == "chatgpt":
+        kind = classify_window(label) or normalize_identifier(label)
+    else:
+        kind = classify_window(label)
+    if not kind:
+        return None
+    if subscription == "chatgpt" and kind == "rolling-5h":
+        label = "5 hours"
     used_percent = getattr(window, "used_percent", None)
     if used_percent is not None:
         try:
@@ -167,8 +198,21 @@ def snapshot_payload(provider: str, subscription: str, snapshot: Any) -> Provide
     windows = [
         payload
         for window in getattr(snapshot, "windows", ())
-        if (payload := window_payload(window)) is not None
+        if (payload := window_payload(window, subscription)) is not None
     ]
+    if subscription == "chatgpt":
+        seen_kinds: dict[str, int] = {}
+        used_kinds: set[str] = set()
+        for window in windows:
+            kind = window["kind"]
+            occurrence = seen_kinds.get(kind, 0) + 1
+            candidate = kind if occurrence == 1 else f"{kind}#{occurrence}"
+            while candidate in used_kinds:
+                occurrence += 1
+                candidate = f"{kind}#{occurrence}"
+            seen_kinds[kind] = occurrence
+            used_kinds.add(candidate)
+            window["kind"] = candidate
     if not windows:
         return unavailable(provider, subscription, "quota unavailable")
     captured_at = getattr(snapshot, "fetched_at", None)
@@ -230,15 +274,24 @@ def opencode_snapshot(api: UsageAPI) -> Any | None:
     for raw in raw_windows:
         if not isinstance(raw, dict):
             continue
-        kind = str(raw.get("kind") or raw.get("type") or "").strip().lower()
+        raw_technical_kind = raw.get("kind")
+        if raw_technical_kind is None:
+            raw_technical_kind = raw.get("type")
+        has_technical_kind = raw_technical_kind is not None
+        technical_kind = normalize_identifier(str(raw_technical_kind or ""))
         label = str(raw.get("label") or {
             "rolling-5h": "5 hours",
             "weekly": "Weekly",
             "monthly": "Monthly",
-        }.get(kind, kind)).strip()
-        if kind == "rolling":
-            kind, label = "rolling-5h", "5 hours"
-        if kind not in {"rolling-5h", "weekly", "monthly", "daily"}:
+        }.get(technical_kind, technical_kind)).strip()
+        if has_technical_kind:
+            if technical_kind == "rolling":
+                kind, label = "rolling-5h", "5 hours"
+            else:
+                kind = classify_window(technical_kind)
+                if kind is None:
+                    return None
+        else:
             kind = classify_window(label) or ""
         used = raw.get("usedPercent", raw.get("used_percent", raw.get("percent")))
         if (
@@ -249,6 +302,7 @@ def opencode_snapshot(api: UsageAPI) -> Any | None:
             and 0 <= float(used) <= 100
         ):
             windows.append(SimpleNamespace(
+                kind=kind,
                 label=label,
                 used_percent=float(used),
                 reset_at=parse_datetime(raw.get("resetAt", raw.get("reset_at", raw.get("resetsAt")))),

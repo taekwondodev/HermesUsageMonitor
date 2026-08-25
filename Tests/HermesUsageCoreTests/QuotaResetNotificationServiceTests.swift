@@ -18,6 +18,30 @@ struct QuotaResetNotificationServiceTests {
         #expect(notifications[0].events[0].windowKind == .rollingFiveHours)
     }
 
+    @Test("notifies for a verified reset of an unknown window")
+    func notifiesForUnknownWindowReset() async throws {
+        let notifier = RecordingNotifier()
+        let service = QuotaResetNotificationService(notifier: notifier)
+        let kind = try QuotaWindowKind.unknown("rolling-7d")
+
+        await service.process(try state(windows: [
+            window(kind: kind, label: "Longer window", usedPercent: 90, resetAt: 1_000)
+        ]))
+        await service.process(try state(windows: [
+            window(kind: kind, label: "Longer window", usedPercent: 0, resetAt: 2_000)
+        ]))
+
+        let notifications = await notifier.notifications
+        #expect(notifications.count == 1)
+        #expect(notifications[0].events == [
+            QuotaResetEvent(
+                subscription: .chatGPT,
+                windowKind: kind,
+                windowLabel: "Longer window"
+            )
+        ])
+    }
+
     @Test("suppresses the quota-reset notification for a suppressed refresh")
     func suppressesRedemptionRefresh() async throws {
         let notifier = RecordingNotifier()

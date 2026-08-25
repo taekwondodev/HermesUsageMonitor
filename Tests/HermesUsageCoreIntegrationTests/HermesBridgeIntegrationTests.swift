@@ -12,7 +12,7 @@ struct HermesBridgeIntegrationTests {
 
         let launcher = root.appendingPathComponent("hermes-usage-bridge")
         let fixture = """
-        {"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"Session","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"}]}}}
+        {"providers":{"openai-codex":{"status":"available","subscription":"chatgpt","capturedAt":"2030-03-17T12:00:00Z","windows":[{"kind":"rolling-5h","label":"5 hours","usedPercent":40.0,"resetAt":"2030-03-17T17:00:00Z"},{"kind":"rolling-7d","label":"Longer window","usedPercent":25.0,"resetAt":"2030-03-24T17:00:00Z"}]}}}
         """
         try "#!/bin/sh\n[ \"$1\" = \"--json\" ] || exit 2\nprintf '%s' '\(fixture)'\n".write(
             to: launcher,
@@ -32,6 +32,10 @@ struct HermesBridgeIntegrationTests {
             return
         }
         #expect(snapshot.windows.first?.usedPercent == 40.0)
+        #expect(snapshot.windows[1].kind == (try .unknown("rolling-7d")))
+        #expect(snapshot.windows[1].label == "Longer window")
+        #expect(snapshot.windows[1].usedPercent == 25.0)
+        #expect(snapshot.windows[1].resetAt?.at.date == ISO8601DateFormatter().date(from: "2030-03-24T17:00:00Z"))
     }
 
     @Test("redeems the nearest applicable credit through the bridge launcher")

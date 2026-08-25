@@ -15,13 +15,26 @@ public enum QuotaWindowDisplayOrder {
         case .opencodeGo:
             return opencodeGoWindows(windows)
         case .chatGPT:
-            return windows.sorted(by: isHigherRisk)
+            return chatGPTWindows(windows)
         }
     }
 
+    private static func chatGPTWindows(_ windows: [QuotaWindow]) -> [QuotaWindow] {
+        let knownOrder: [QuotaWindowKind] = [.rollingFiveHours, .weekly]
+        return windows.enumerated().sorted { lhs, rhs in
+            let lhsRank = knownOrder.firstIndex(of: lhs.element.kind) ?? knownOrder.count
+            let rhsRank = knownOrder.firstIndex(of: rhs.element.kind) ?? knownOrder.count
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
     private static func opencodeGoWindows(_ windows: [QuotaWindow]) -> [QuotaWindow] {
-        windows.sorted { lhs, rhs in
-            index(of: lhs.kind) < index(of: rhs.kind)
+        let knownKinds = Set(opencodeGo)
+        return windows.sorted { lhs, rhs in
+            let lhsIndex = knownKinds.contains(lhs.kind) ? index(of: lhs.kind) : opencodeGo.count
+            let rhsIndex = knownKinds.contains(rhs.kind) ? index(of: rhs.kind) : opencodeGo.count
+            return lhsIndex < rhsIndex
         }
     }
 
@@ -32,10 +45,4 @@ public enum QuotaWindowDisplayOrder {
         return index
     }
 
-    private static func isHigherRisk(_ lhs: QuotaWindow, _ rhs: QuotaWindow) -> Bool {
-        if lhs.usedPercent != rhs.usedPercent {
-            return lhs.usedPercent > rhs.usedPercent
-        }
-        return (lhs.resetAt?.at.date ?? .distantFuture) < (rhs.resetAt?.at.date ?? .distantFuture)
-    }
 }

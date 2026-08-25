@@ -68,6 +68,38 @@ struct QuotaRefreshScheduleTests {
         )
     }
 
+    @Test("tracks an unknown window through expiry and retry")
+    func tracksUnknownWindowThroughExpiry() throws {
+        let kind = try QuotaWindowKind.unknown("rolling-7d")
+        let baselineState = try state(
+            subscription: .chatGPT,
+            availability: .live,
+            freshness: .live,
+            windows: [try window(kind: kind, usedPercent: 80, resetAt: 900)]
+        )
+        let reference = QuotaWindowReference(subscription: .chatGPT, kind: kind)
+
+        #expect(QuotaRefreshSchedule.expiredLiveWindows(in: baselineState, now: Date(timeIntervalSince1970: 1_000)) == [reference])
+        #expect(QuotaRefreshSchedule.shouldRetry(
+            state: baselineState,
+            attemptedWindows: [reference],
+            now: Date(timeIntervalSince1970: 1_000)
+        ))
+
+        let futureState = try state(
+            subscription: .chatGPT,
+            availability: .live,
+            freshness: .live,
+            windows: [try window(kind: kind, usedPercent: 80, resetAt: 1_100)]
+        )
+        #expect(
+            QuotaRefreshSchedule.nextLiveReset(
+                in: futureState,
+                now: Date(timeIntervalSince1970: 1_000)
+            ) == Date(timeIntervalSince1970: 1_100)
+        )
+    }
+
     @Test("allows one retry after 30 seconds and no second retry")
     func limitsRetryAttempts() {
         #expect(QuotaRefreshSchedule.nextRetryDelay(after: 0) == .seconds(30))
@@ -117,12 +149,13 @@ struct QuotaRefreshScheduleTests {
     }
 
     private func state(
+        subscription: Subscription = .opencodeGo,
         availability: RefreshAvailability,
         freshness: QuotaFreshness,
         windows: [QuotaWindow]
     ) throws -> SubscriptionRefreshState {
         let snapshot = try QuotaSnapshot(
-            subscription: .opencodeGo,
+            subscription: subscription,
             capturedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 900)),
             freshness: freshness,
             windows: windows,
@@ -130,7 +163,7 @@ struct QuotaRefreshScheduleTests {
         )
         return SubscriptionRefreshState(
             subscriptions: [SubscriptionQuota(
-                subscription: .opencodeGo,
+                subscription: subscription,
                 result: .snapshot(snapshot)
             )],
             availability: availability,
