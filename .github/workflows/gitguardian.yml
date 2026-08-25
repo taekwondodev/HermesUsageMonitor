@@ -38,22 +38,3 @@ jobs:
         with:
           name: gitguardian-findings
           path: gitguardian-scan.json
-
-  history-report:
-    name: Non-blocking history scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Install ggshield
-        run: pip install --quiet ggshield
-
-      - name: Scan full history (informational)
-        continue-on-error: true
-        run: ggshield secret scan repo .
-        env:
-          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}

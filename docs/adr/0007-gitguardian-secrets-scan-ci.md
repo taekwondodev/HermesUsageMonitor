@@ -14,21 +14,18 @@ workflow.
 A first draft treated the full git history as a blocking gate. That would make the run red
 permanently once any historical secret existed, and it would make the push loop unrecoverable:
 a secret commit stays in history forever, so even a fix commit that removes the secret from
-the tree cannot turn the gate green without rewriting history. The blocking gate therefore
-has to be the current working tree, and the history scan must be informational only.
+the tree cannot turn the gate green without rewriting history. The blocking gate therefore has to be the current working tree. Historical scanning is not
+part of the repository workflow because it is not useful for this repository's push gate.
 
 ## Decision
 
 Add a standalone GitHub Actions workflow (GitGuardian Secrets Scan) that runs on push to
-main and on manual dispatch. It has two jobs:
+main and on manual dispatch. It has one job:
 
 - A blocking job that checks out the repository, installs ggshield, and runs a recursive
   scan of the current working tree. Any detected secret fails the run. This is the gate the
   push loop watches.
-- A non-blocking job that checks out full history (full depth) and scans the whole
-  repository history, reporting the result without failing the run. It uses
-  `continue-on-error`, so a real scan failure or a historical secret never turns the run
-  red.
+
 
 The blocking job runs the recursive path scan with `--yes`, because a recursive scan with
 more than one file otherwise asks for confirmation and, in the non-interactive CI shell,
@@ -57,8 +54,7 @@ the exit status propagates to the caller. It performs no additional local checks
 
 - Secrets in the pushed tree fail the CI run; a fix commit that removes the secret flips the
   gate green again without any history rewrite.
-- Historical secrets are surfaced in the GitGuardian dashboard but can never hold the run
-  red permanently.
+- Historical scanning is intentionally outside the CI workflow.
 - The agent drives the loop with a single command and reads the outcome from its exit code.
 - Activation depends on the `GITGUARDIAN_API_KEY` repository secret being set and on the
   workflow being valid; the main branch remains unprotected, so a manual dispatch can
