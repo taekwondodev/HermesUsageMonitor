@@ -35,8 +35,8 @@ struct HermesUsageMonitorAppTests {
                     id: "0",
                     modelLabel: "deepseek-v4-flash",
                     requestsLabel: "450 richieste",
-                    inputLabel: "2799260",
-                    outputLabel: "553512",
+                    inputLabel: "2.799.260",
+                    outputLabel: "553.512",
                     costLabel: "0 USD"
                 ),
                 AccountingDisplayBlock(
@@ -49,6 +49,27 @@ struct HermesUsageMonitorAppTests {
                 )
             ]
         )
+    }
+
+    @Test("formats token counts with Italian thousands separators")
+    func accountingDisplayBlocksFormatTokenCounts() throws {
+        let items = try [
+            LocalAccounting(
+                subscription: .chatGPT,
+                tokens: try AccountingTokens(input: 1_000, output: 1_000_000)
+            ),
+            LocalAccounting(
+                subscription: .chatGPT,
+                tokens: try AccountingTokens(input: 0, output: 999)
+            )
+        ]
+
+        let blocks = AccountingDisplayBlock.blocks(from: items)
+
+        #expect(blocks[0].inputLabel == "1.000")
+        #expect(blocks[0].outputLabel == "1.000.000")
+        #expect(blocks[1].inputLabel == "0")
+        #expect(blocks[1].outputLabel == "999")
     }
 
     @Test("provider identity assets are present in the executable bundle")

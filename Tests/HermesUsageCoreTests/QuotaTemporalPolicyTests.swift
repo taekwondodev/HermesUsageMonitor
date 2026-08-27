@@ -66,4 +66,26 @@ struct QuotaTemporalPolicyTests {
             ) == "appena acquisito"
         )
     }
+
+    @Test("formats long countdowns without rounding the remaining minutes into the next hour")
+    func formatsLongCountdownPrecisely() {
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 14_401) == "tra 4 h 1 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 14_400) == "tra 4 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_601) == "tra 1 h 1 min")
+    }
+
+    @Test("formats every countdown range and clamps invalid input")
+    func formatsAllCountdownRanges() {
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: -1) == "tra 0s")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 0) == "tra 0s")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 59) == "tra 59s")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 60) == "tra 1 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_600) == "tra 1 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 86_399) == "tra 23 h 59 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 86_100) == "tra 23 h 55 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 86_340) == "tra 23 h 59 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 86_400) == "tra 1 g")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 86_460) == "tra 1 g")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 172_800) == "tra 2 g")
+    }
 }

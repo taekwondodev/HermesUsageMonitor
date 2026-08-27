@@ -743,23 +743,9 @@ private struct SubscriptionCard: View {
     }
 
     private func countdownLabel(until date: Date) -> String {
-        let seconds = QuotaTemporalPolicy.secondsRemaining(until: date, now: uiNow)
-        if seconds < 60 {
-            return "tra \(seconds)s"
-        }
-
-        let minutes = (seconds + 59) / 60
-        if minutes < 60 {
-            return "tra \(minutes) min"
-        }
-
-        let hours = (minutes + 59) / 60
-        if hours < 24 {
-            return "tra \(hours) h"
-        }
-
-        let days = (hours + 23) / 24
-        return "tra \(days) g"
+        QuotaTemporalPolicy.countdownLabel(
+            seconds: QuotaTemporalPolicy.secondsRemaining(until: date, now: uiNow)
+        )
     }
 
 
@@ -805,6 +791,20 @@ struct AccountingDisplayBlock: Equatable, Identifiable {
     let outputLabel: String
     let costLabel: String
 
+    private static func tokenLabel(_ value: Int?) -> String {
+        guard let value else { return "Non disponibile" }
+
+        let digits = String(value)
+        var groups: [Substring] = []
+        var end = digits.endIndex
+        while end > digits.startIndex {
+            let start = digits.index(end, offsetBy: -3, limitedBy: digits.startIndex) ?? digits.startIndex
+            groups.insert(digits[start..<end], at: 0)
+            end = start
+        }
+        return groups.joined(separator: ".")
+    }
+
     static func blocks(from items: [LocalAccounting]) -> [AccountingDisplayBlock] {
         items.enumerated().map { itemIndex, item in
             AccountingDisplayBlock(
@@ -813,8 +813,8 @@ struct AccountingDisplayBlock: Equatable, Identifiable {
                     ? "Modello non disponibile"
                     : item.models.joined(separator: ", "),
                 requestsLabel: item.requests.map { "\($0) richieste" } ?? "Non disponibile",
-                inputLabel: item.tokens?.input.map(String.init) ?? "Non disponibile",
-                outputLabel: item.tokens?.output.map(String.init) ?? "Non disponibile",
+                inputLabel: tokenLabel(item.tokens?.input),
+                outputLabel: tokenLabel(item.tokens?.output),
                 costLabel: item.cost.map { "\($0.amount.description) \($0.currency)" } ?? "Non disponibile"
             )
         }
