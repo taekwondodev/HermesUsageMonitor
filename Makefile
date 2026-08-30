@@ -13,7 +13,7 @@ ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # Bare `make` (no target) must never trigger build/install implicitly.
 .DEFAULT_GOAL := help
 
-.PHONY: build verify check test clean help push-and-watch
+.PHONY: build verify check test launch-baseline launch-check clean help push-and-watch
 
 # Build, assemble, sign, install and launch ~/Applications/HermesUsageMonitor.app.
 build:
@@ -31,6 +31,14 @@ check:
 test:
 	cd "$(ROOT)" && swift test
 
+# Record the installed release app's menu-bar first-appearance baseline.
+launch-baseline:
+	"$(ROOT)scripts/measure-launch.py" --record-baseline "$(ROOT)scripts/launch-baseline.json"
+
+# Compare the installed release app against the recorded launch budget.
+launch-check:
+	"$(ROOT)scripts/measure-launch.py" --baseline "$(ROOT)scripts/launch-baseline.json"
+
 # Clean SwiftPM build artifacts only — never touches ~/Applications/HermesUsageMonitor.app.
 clean:
 	cd "$(ROOT)" && swift package clean
@@ -46,6 +54,8 @@ help:
 	@echo "  verify         check an installed app bundle, then launch it"
 	@echo "  check          verify Hermes update-to-app compatibility"
 	@echo "  test           run the SwiftPM test suite"
+	@echo "  launch-baseline record 20 release launch samples and their budget"
+	@echo "  launch-check   compare 20 release launch samples with the budget"
 	@echo "  clean          remove SwiftPM build artifacts (.build only)"
 	@echo "  push-and-watch push main and wait for the GitGuardian CI run"
 	@echo "  help           this list"

@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 
 @main
 struct HermesUsageMonitorApp: App {
-    @State private var model = UsageViewModel()
+    @State private var model: UsageViewModel
 
     init() {
         guard SingleInstanceGuard.acquire() else {
@@ -36,6 +36,9 @@ struct HermesUsageMonitorApp: App {
                 Text("AI usage")
             } icon: {
                 HermesMenuBarIcon()
+                    .onAppear {
+                        LaunchProbe.recordFirstAppearance()
+                    }
             }
         }
         .menuBarExtraStyle(.window)
@@ -132,7 +135,7 @@ private final class UsageViewModel {
         await resetService.process(state, suppressing: suppress)
         await redemptionService.clearVerificationAfterRefresh(manualReset: state.manualReset)
         await refreshRedemptionEligibility()
-        switch accountingService.readGroupedBySubscription() {
+        switch await accountingService.readGroupedBySubscription() {
         case let .available(grouped):
             accountingBySubscription = grouped
             accountingAvailability = .available

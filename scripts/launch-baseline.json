@@ -1,0 +1,36 @@
+{
+  "budgetP95Milliseconds": 211.506,
+  "executableSHA256": "9f4f3f2b66eda456dfa9a7525e1733cae0d8a19b4abd18e948b3c8e2d80820d2",
+  "machine": {
+    "architecture": "arm64",
+    "model": "Mac14,9",
+    "os": "26.5"
+  },
+  "medianMilliseconds": 135.72,
+  "milestone": "menu-bar-identity-first-appearance",
+  "p95Milliseconds": 176.255,
+  "sampleCount": 20,
+  "samplesMilliseconds": [
+    106.353,
+    103.013,
+    115.448,
+    128.026,
+    134.836,
+    134.698,
+    142.19,
+    125.2,
+    148.207,
+    128.402,
+    161.869,
+    134.025,
+    136.604,
+    152.864,
+    133.633,
+    176.255,
+    165.308,
+    147.355,
+    200.464,
+    160.34
+  ],
+  "schemaVersion": 1
+}

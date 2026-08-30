@@ -14,7 +14,7 @@ struct NoopLocalAccountingObserver: LocalAccountingObserver {
 
 extension HermesAccountingReader: LocalAccountingSource {}
 
-public struct LocalAccountingService: Sendable {
+public actor LocalAccountingService {
     private let source: any LocalAccountingSource
     private let observer: any LocalAccountingObserver
     private let clock: @Sendable () -> Date

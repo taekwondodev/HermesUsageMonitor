@@ -25,7 +25,7 @@ struct HermesAccountingReaderIntegrationTests {
     }
 
     @Test("reads multiple profiles and commercial subscriptions")
-    func readsMultipleProfiles() throws {
+    func readsMultipleProfiles() async throws {
         let fileURL = try makeTemporaryFile(
             """
             {"version":1,"entries":[
@@ -36,8 +36,8 @@ struct HermesAccountingReaderIntegrationTests {
         )
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let result = LocalAccountingService(source: HermesAccountingReader(fileURL: fileURL))
-            .readGroupedBySubscription()
+        let service = LocalAccountingService(source: HermesAccountingReader(fileURL: fileURL))
+        let result = await service.readGroupedBySubscription()
         guard case let .available(grouped) = result else {
             Issue.record("Expected available accounting")
             return
