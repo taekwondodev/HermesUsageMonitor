@@ -754,6 +754,7 @@ private struct SubscriptionCard: View {
 
     private func color(for window: QuotaWindow, freshness: QuotaFreshness) -> Color {
         guard freshness != .stale else { return .gray }
+        if window.usedPercent <= 0 { return .gray }
         if window.usedPercent >= 100 { return .red }
         if window.usedPercent >= 80 { return .orange }
         return .green
