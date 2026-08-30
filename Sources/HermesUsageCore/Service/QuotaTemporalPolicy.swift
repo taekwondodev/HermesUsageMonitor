@@ -17,12 +17,9 @@ public enum QuotaTemporalPolicy {
         }
 
         if safeSeconds < 86_400 {
-            let hours = safeSeconds / 3_600
-            let remainingSeconds = safeSeconds % 3_600
-            let roundedMinutes = (remainingSeconds + 59) / 60
-            let remainingMinutes = hours == 23 && roundedMinutes == 60
-                ? 59
-                : roundedMinutes
+            let cappedMinutes = min(minutes, 1_439)
+            let hours = cappedMinutes / 60
+            let remainingMinutes = cappedMinutes % 60
             return remainingMinutes == 0
                 ? "tra \(hours) h"
                 : "tra \(hours) h \(remainingMinutes) min"

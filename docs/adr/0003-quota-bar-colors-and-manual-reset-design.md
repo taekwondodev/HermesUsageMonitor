@@ -14,7 +14,7 @@ While implementing the ChatGPT manual reset section (issue #34), two visual regr
 
 ### Quota bar colors are explicit and protected
 
-Every quota `ProgressView` keeps its explicit `.tint(color(for:freshness:))` modifier. Quota bars are never left to inherit a container-level or environment tint, and they always use the fixed semantic palette: gray at 0% (nothing consumed yet — a fully reset quota reads neutral, not healthy), green above 0% and below 80%, orange from 80%, red at 100%, gray when stale. The system accent color is never used for quota state.
+Every quota `ProgressView` remains the **native macOS control**, preserving its track, geometry, antialiasing, and padding. Positive values keep the explicit semantic tint from `color(for:freshness:)`: green below 80%, orange from 80%, red at 100%, and gray when stale. At an exact provider-reported zero, the control uses a transparent tint; this hides the native minimum fill cap while leaving the native groove visible, so the bar reads as empty without a green, gray, or system-accent usage segment. Positive fractional values retain their semantic tint even if the adjacent percentage label rounds to `0%`.
 
 When adding any control that sets its own tint (prominent buttons, links, toggles) inside the popover, the new tint must be scoped as narrowly as possible — applied directly on the control or the smallest enclosing subtree — and the full popover must be re-inspected at runtime afterwards, because a diff review cannot catch environment-tint leakage.
 

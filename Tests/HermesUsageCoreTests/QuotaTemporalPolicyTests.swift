@@ -74,6 +74,19 @@ struct QuotaTemporalPolicyTests {
         #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_601) == "tra 1 h 1 min")
     }
 
+    @Test("carries rounded sixty-minute remainders into the next hour")
+    func carriesRoundedMinutesIntoNextHour() {
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_540) == "tra 59 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_541) == "tra 1 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_599) == "tra 1 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 3_600) == "tra 1 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 14_399) == "tra 4 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 17_940) == "tra 4 h 59 min")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 17_941) == "tra 5 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 17_999) == "tra 5 h")
+        #expect(QuotaTemporalPolicy.countdownLabel(seconds: 18_000) == "tra 5 h")
+    }
+
     @Test("formats every countdown range and clamps invalid input")
     func formatsAllCountdownRanges() {
         #expect(QuotaTemporalPolicy.countdownLabel(seconds: -1) == "tra 0s")
