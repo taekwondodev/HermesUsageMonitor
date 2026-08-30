@@ -1,21 +1,21 @@
+import Darwin
 import Foundation
 
 @MainActor
 enum LaunchProbe {
     private static var hasRecordedFirstAppearance = false
 
-    static func recordFirstAppearance(
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        systemUptime: TimeInterval = ProcessInfo.processInfo.systemUptime,
-        processID: Int32 = ProcessInfo.processInfo.processIdentifier
-    ) {
+    static func recordFirstAppearance() {
         guard !hasRecordedFirstAppearance,
-              let path = environment["HERMES_LAUNCH_PROBE_FILE"],
+              let rawPath = getenv("HERMES_LAUNCH_PROBE_FILE"),
+              let path = String(validatingCString: rawPath),
               !path.isEmpty else {
             return
         }
 
         hasRecordedFirstAppearance = true
+        let systemUptime = ProcessInfo.processInfo.systemUptime
+        let processID = ProcessInfo.processInfo.processIdentifier
         let payload = Payload(
             pid: processID,
             systemUptime: systemUptime
