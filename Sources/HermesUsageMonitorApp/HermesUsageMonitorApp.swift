@@ -405,17 +405,13 @@ private struct UsagePopoverView: View {
             Divider()
                 .padding(.vertical, 10)
 
-            Label(
-                model.availability.label,
-                systemImage: "clock.arrow.circlepath"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let updatedAt = model.updatedAt {
-                Text("\(model.availability == .offline ? "Controllato" : "Aggiornato") \(updatedAt.date, format: .dateTime.day().month().hour().minute())")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            if let label = model.availability.label {
+                Label(
+                    label,
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -709,9 +705,11 @@ private struct SubscriptionCard: View {
                 }
             }
 
-            Text(freshnessLabel(snapshot.freshness))
-                .font(.caption2)
-                .foregroundStyle(snapshot.freshness == .stale ? Color.orange : Color.gray)
+            if let label = freshnessLabel(snapshot.freshness) {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(snapshot.freshness == .stale ? Color.orange : Color.gray)
+            }
 
             Text("Snapshot acquisito \(QuotaTemporalPolicy.snapshotAgeLabel(capturedAt: snapshot.capturedAt.date, now: uiNow))")
                 .font(.caption2)
@@ -759,10 +757,10 @@ private struct SubscriptionCard: View {
         return .green
     }
 
-    private func freshnessLabel(_ freshness: QuotaFreshness) -> String {
+    private func freshnessLabel(_ freshness: QuotaFreshness) -> String? {
         switch freshness {
         case .live:
-            return "Dato live da Hermes"
+            return nil
         case .persisted:
             return "Snapshot Hermes persistito"
         case .stale:
@@ -1095,10 +1093,10 @@ private extension SubscriptionQuota {
 }
 
 private extension RefreshAvailability {
-    var label: String {
+    var label: String? {
         switch self {
         case .live:
-            return "Dati osservati da Hermes"
+            return nil
         case .offline:
             return "Hermes offline · ultimo snapshot mantenuto"
         case .waiting:
