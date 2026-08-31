@@ -402,14 +402,6 @@ private struct UsagePopoverView: View {
                 }
             }
 
-            if let label = model.availability.label {
-                Label(
-                    label,
-                    systemImage: "clock.arrow.circlepath"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1085,19 +1077,6 @@ private extension SubscriptionQuota {
             return .green
         case .unavailable:
             return .secondary
-        }
-    }
-}
-
-private extension RefreshAvailability {
-    var label: String? {
-        switch self {
-        case .live:
-            return nil
-        case .offline:
-            return "Hermes offline · ultimo snapshot mantenuto"
-        case .waiting:
-            return "In attesa dei dati di Hermes"
         }
     }
 }
