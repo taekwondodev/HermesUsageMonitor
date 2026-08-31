@@ -402,9 +402,6 @@ private struct UsagePopoverView: View {
                 }
             }
 
-            Divider()
-                .padding(.vertical, 10)
-
             if let label = model.availability.label {
                 Label(
                     label,
