@@ -20,7 +20,7 @@ macOS.
 
 ## Decision
 
-- Hide the scroll bar with `.scrollIndicators(.hidden)`. Scrollability is signalled by the
+- Hide the scroll bar with `.scrollIndicators(.never)`. Scrollability is signalled by the
   clipped last card at the bottom edge, the affordance the macOS HIG recommends when a scroll
   bar is not shown.
 - The content keeps a uniform, symmetric 16pt padding from the window edge on all sides
@@ -30,6 +30,22 @@ macOS.
   moves the overlay scroll bar together with the content: both shift left by the inset, so it
   can never create separation between a scroll bar and the content. Pixel measurement of the
   installed popover confirmed the scroll bar shifted left by exactly the inset (16pt).
+
+### Why `.never` and not `.hidden` (revisited 2026-09-02)
+
+The original decision used `.scrollIndicators(.hidden)`, and the popover still showed a
+persistent vertical scroll bar at rest. Instrumented runs of the real menu-bar panel logged
+the hosting `ScrollView` switching `hasVerticalScroller` back to `true` the moment the user
+scrolled, with `scrollerStyle == .legacy`. SwiftUI's `.hidden` is pointer-device aware on
+macOS: when a mouse (rather than only a trackpad) is connected, indicators return. That is
+exactly this machine's setup, so `.hidden` could never hold the bar off. `.never` hides the
+indicators regardless of the connected pointing device.
+
+Switching the value to `.never` fixed both symptoms: no scroll bar at rest, and no scroll
+bar (and therefore no width reflow of the cards) while actually scrolling. An AppKit
+workaround that walked the window's view tree to force `hasVerticalScroller = false` was
+tried first and only suppressed the bar until the next scroll re-enabled it; it is not
+needed once `.never` is used.
 
 ### Verification
 

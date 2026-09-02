@@ -405,7 +405,7 @@ private struct UsagePopoverView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollIndicators(.hidden)
+        .scrollIndicators(.never)
         .padding(16)
         .frame(width: 380)
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)

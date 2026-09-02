@@ -40,4 +40,4 @@ The app treats Hermes and provider quota data as read-only observations. Local t
 
 ## Popover layout terms
 
-- **Scroll affordance**: the popover signals that a list scrolls by clipping the last row at the bottom edge (the macOS HIG affordance when no scroll bar is shown), because the scroll bar is never shown. The content keeps a uniform symmetric 16pt margin from the window edge, so it reads balanced and never touches the edge while scrolling (see `docs/adr/0006-scroll-affordance-via-hidden-scrollbar.md`).
+- **Scroll affordance**: the popover signals that a list scrolls by clipping the last row at the bottom edge (the macOS HIG affordance when no scroll bar is shown), because the scroll bar is never shown. The list uses `.scrollIndicators(.never)` for this: `.hidden` alone is pointer-device aware on macOS and lets indicators return when a mouse is connected, so `.never` is the only value that holds the bar off both at rest and while scrolling. The content keeps a uniform symmetric 16pt margin from the window edge, so it reads balanced and never touches the edge while scrolling (see `docs/adr/0006-scroll-affordance-via-hidden-scrollbar.md`).
