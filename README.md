@@ -1,57 +1,52 @@
-# HermesUsageMonitor
+<p align="center">
+  <img src="Sources/HermesUsageMonitorApp/Resources/Media.xcassets/AppIcon.appiconset/icon-concept-d.png" width="160" alt="HermesUsageMonitor app icon">
+  <img src="Sources/HermesUsageMonitorApp/Resources/Media.xcassets/HermesMenuBarIcon.imageset/HermesMenuBarIcon.png" width="220" alt="HermesUsageMonitor menu bar icon">
+</p>
 
-Native macOS menu bar companion for monitoring AI subscription usage observed by Hermes Agent.
+<div align="center">
+  <h1>HermesUsageMonitor</h1>
+  <p>Native SwiftUI macOS menu bar utility for monitoring AI subscription quotas and Hermes Agent usage.</p>
+</div>
 
-## Current state
+## What it is
 
-This repository contains the initial SwiftUI menu bar scaffold:
+- macOS 26+ menu bar app built with SwiftUI `MenuBarExtra`
+- Live quota cards for ChatGPT and OpenCode Go
+- Provider reset countdowns and verified reset notifications
+- Hermes usage accounting for the rolling 30-day window
+- Manual reset redemption flow with explicit verification
+- Read-only integration with provider quota data and Hermes runtime data
 
-- macOS 26+
-- menu bar-only app using `MenuBarExtra`
-- fixed app icon
-- two subscription groups: OpenCode Go and ChatGPT
-- quota/accounting UI backed by Hermes Agent's live usage bridge
+## How it works
 
-The app is intentionally read-only. Hermes integration, quota snapshots, profile aggregation, and reset notifications will be implemented from the approved product specification.
+1. A bundled `hermes-usage-bridge` reads provider quota snapshots through the existing Hermes environment.
+2. The app validates provider and quota-window identity, then aggregates profiles by subscription.
+3. Hermes `state.db` is read through SQLite for local token, request, model, and cost accounting.
+4. Reset notifications are emitted only for a verified transition: usage changes from above 0% to 0% and the provider reset timestamp advances.
 
-## Hermes data bridge
+Credentials stay in Hermes. HermesUsageMonitor stores no provider secrets and never derives official quota percentages from local accounting.
 
-Quota data is read through the app-bundled `hermes-usage-bridge` launcher. The launcher uses the existing Hermes virtual environment and Hermes Agent authentication: ChatGPT/OpenAI Codex is read through the upstream usage API and OpenCode Go through its usage endpoint. HermesUsageMonitor never stores provider credentials and never asks providers to authenticate separately.
+## Screenshots
 
-The launcher and bridge resource are installed inside the app bundle by `scripts/build-app.sh`; Hermes Desktop does not need to be open.
+<img src="Screenshots/popover.png" width="300" alt="HermesUsageMonitor popover">
 
-Hermes local accounting is read read-only from the profile's `state.db` via SQLite. The app maps supported technical providers such as `openai-codex` and `opencode-go` to commercial subscriptions and ignores unsupported sources. It never derives a quota percentage from historical token usage.
+## Performance
 
-## Open in Xcode
+Measured on 20 cold launches of the installed Release app, up to the first menu bar identity appearance:
 
-Open `Package.swift` in Xcode 26.6 and run the `HermesUsageMonitor` executable scheme.
+| Metric | Result |
+| --- | ---: |
+| Median | 135.720 ms |
+| P95 | 176.255 ms |
+| P95 budget | 211.506 ms |
 
-## Build from Terminal
+The measurement is tied to the installed Release executable and its SHA-256 baseline in [`scripts/launch-baseline.json`](scripts/launch-baseline.json).
 
-```bash
-swift build
-```
-
-## Install the local app bundle
-
-To build, ad-hoc sign, install, and launch the personal menu bar app:
-
-```bash
-./scripts/build-app.sh
-```
-
-The script installs `HermesUsageMonitor.app` in `~/Applications`. If an existing instance is running, it asks for confirmation before replacing it. `swift run HermesUsageMonitor` remains a development mode; because it is not a `.app` bundle, UserNotifications are intentionally disabled in that mode.
-
-To verify an already-installed bundle without rebuilding it:
-
-```bash
-./scripts/verify-installed-app.sh
-```
-
-To verify Hermes compatibility after an update and save a non-sensitive report:
+## Build
 
 ```bash
-./scripts/verify-hermes-compatibility.py
+make build
 ```
 
-Reports are written under `~/.hermes/update-safe/`.
+The Makefile builds, signs, installs, and launches `HermesUsageMonitor.app` in `~/Applications`.
+
