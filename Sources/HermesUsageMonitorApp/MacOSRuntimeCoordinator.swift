@@ -5,10 +5,22 @@ import UserNotifications
 @MainActor
 struct AppShutdownCoordinator {
     let stopRefresh: @MainActor () -> Void
+    let stopResourceProfiling: @MainActor () -> Void
     let terminate: @MainActor () -> Void
+
+    init(
+        stopRefresh: @escaping @MainActor () -> Void,
+        stopResourceProfiling: @escaping @MainActor () -> Void = {},
+        terminate: @escaping @MainActor () -> Void
+    ) {
+        self.stopRefresh = stopRefresh
+        self.stopResourceProfiling = stopResourceProfiling
+        self.terminate = terminate
+    }
 
     func shutdown() {
         stopRefresh()
+        stopResourceProfiling()
         terminate()
     }
 }

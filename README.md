@@ -32,15 +32,9 @@ Credentials stay in Hermes. HermesUsageMonitor stores no provider secrets and ne
 
 ## Performance
 
-Measured on 20 cold launches of the installed Release app, up to the first menu bar identity appearance:
+![HermesUsageMonitor performance profile](Screenshots/performance-hero.png)
 
-| Metric | Result |
-| --- | ---: |
-| Median | 135.720 ms |
-| P95 | 176.255 ms |
-| P95 budget | 211.506 ms |
-
-The measurement is tied to the installed Release executable and its SHA-256 baseline in [`scripts/launch-baseline.json`](scripts/launch-baseline.json).
+The chart combines the cold-launch baseline with average resident memory and CPU in the popover-closed and popover-open states. The installed Release artifact and its provenance are recorded in [`scripts/launch-baseline.json`](scripts/launch-baseline.json) and [`scripts/resource-baseline.json`](scripts/resource-baseline.json).
 
 ## Build
 

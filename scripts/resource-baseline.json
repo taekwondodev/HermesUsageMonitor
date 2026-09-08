@@ -1,0 +1,26 @@
+{
+  "aggregates": {
+    "closed": {
+      "cpuAveragePercent": 0.1629016735271951,
+      "durationSeconds": 93.91247970832046,
+      "memoryAverageMegabytes": 15.74980222913954,
+      "memoryPeakMegabytes": 25.57892608642578,
+      "sampleCount": 180
+    },
+    "open": {
+      "cpuAveragePercent": 1.7441686574657531,
+      "durationSeconds": 28.85213558333635,
+      "memoryAverageMegabytes": 26.329494268243963,
+      "memoryPeakMegabytes": 26.64142608642578,
+      "sampleCount": 55
+    }
+  },
+  "coverageThresholdSeconds": 15,
+  "executableSHA256": "c90ab09f6a76605d8329eb22395b9601c137f62db6f4aa848242c0902f5a3821",
+  "machine": {
+    "architecture": "arm64",
+    "model": "Mac14,9",
+    "os": "26.5"
+  },
+  "schemaVersion": 1
+}

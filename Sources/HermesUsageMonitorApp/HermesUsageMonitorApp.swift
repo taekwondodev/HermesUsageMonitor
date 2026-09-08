@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 @main
 struct HermesUsageMonitorApp: App {
     @State private var model: UsageViewModel
+    private let resourceProfiler: ResourceSamplerCoordinator
 
     init() {
         guard SingleInstanceGuard.acquire() else {
@@ -16,6 +17,8 @@ struct HermesUsageMonitorApp: App {
 
         let model = UsageViewModel()
         _model = State(initialValue: model)
+        resourceProfiler = ResourceSamplerCoordinator()
+        resourceProfiler.start()
         Task { await NotificationAuthorizationCoordinator.requestOnLaunchIfNeeded() }
         model.startAutomaticRefresh()
     }
@@ -24,9 +27,11 @@ struct HermesUsageMonitorApp: App {
         MenuBarExtra {
             UsagePopoverView(
                 model: model,
+                resourceProfiler: resourceProfiler,
                 onTerminate: {
                     AppShutdownCoordinator(
                         stopRefresh: model.stopAutomaticRefresh,
+                        stopResourceProfiling: resourceProfiler.stopAndPersist,
                         terminate: { NSApplication.shared.terminate(nil) }
                     ).shutdown()
                 }
@@ -334,6 +339,7 @@ enum ManualResetRedemptionFlowState: Equatable {
 
 private struct UsagePopoverView: View {
     let model: UsageViewModel
+    let resourceProfiler: ResourceSamplerCoordinator
     let onTerminate: () -> Void
     @State private var expandedSubscriptions: Set<Subscription> = []
     @State private var isManualResetExpanded = false
@@ -411,9 +417,11 @@ private struct UsagePopoverView: View {
         .frame(minHeight: PopoverLayout.minimumHeight, idealHeight: PopoverLayout.idealHeight, maxHeight: PopoverLayout.maximumHeight)
         .onAppear {
             model.startUITimer()
+            resourceProfiler.setPopoverVisible(true)
         }
         .onDisappear {
             model.stopUITimer()
+            resourceProfiler.setPopoverVisible(false)
         }
     }
 

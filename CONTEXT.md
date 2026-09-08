@@ -38,6 +38,13 @@ The app treats Hermes and provider quota data as read-only observations. Local t
 - The menu bar sparkle has the same effective height as the H, with clear optical separation from the H.
 - The H keeps robust bars and a long horizontal crossbar; the mark is wider than tall since horizontal expansion is preferred over compressing the mark into a square.
 
+## Performance profile terms
+
+- **Resident resource profile**: a manually captured installed Release session that samples physical footprint and process CPU while the popover is closed and open.
+- **Resource profile gate**: the `HERMES_RESOURCE_PROFILE_FILE` environment variable. Without a non-empty value, the profiler is inert.
+- **Resource coverage**: at least 15 seconds of tagged samples in each popover state, sampled at a 0.5-second cadence.
+- **Resource baseline**: committed per-state memory average and peak, CPU average, and artifact provenance. It never contains the sample series or Hermes/provider data.
+
 ## Popover layout terms
 
 - **Scroll affordance**: the popover signals that a list scrolls by clipping the last row at the bottom edge (the macOS HIG affordance when no scroll bar is shown), because the scroll bar is never shown. The list uses `.scrollIndicators(.never)` for this: `.hidden` alone is pointer-device aware on macOS and lets indicators return when a mouse is connected, so `.never` is the only value that holds the bar off both at rest and while scrolling. The content keeps a uniform symmetric 16pt margin from the window edge, so it reads balanced and never touches the edge while scrolling (see `docs/adr/0006-scroll-affordance-via-hidden-scrollbar.md`).

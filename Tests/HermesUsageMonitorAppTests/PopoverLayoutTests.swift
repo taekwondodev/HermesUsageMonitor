@@ -174,9 +174,10 @@ struct HermesUsageMonitorAppTests {
         var events: [String] = []
         AppShutdownCoordinator(
             stopRefresh: { events.append("stop") },
+            stopResourceProfiling: { events.append("profile") },
             terminate: { events.append("terminate") }
         ).shutdown()
 
-        #expect(events == ["stop", "terminate"])
+        #expect(events == ["stop", "profile", "terminate"])
     }
 }
