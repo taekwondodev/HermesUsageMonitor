@@ -13,11 +13,11 @@ Resident profiling remains compiled into the installed Release app and activates
 
 The popover's existing `onAppear` and `onDisappear` lifecycle tags samples as open or closed. A 0.5-second coordinator captures physical footprint and process CPU percentage. The OS reader is the only code that calls task information APIs; aggregation and coverage validation are pure.
 
-The chart palette is the monochrome ink, paper, and gray palette captured from the installed app icon. The H and four-point sparkle are rendered as the chart identity mark; no unrelated provider or system accent colors are introduced.
+The chart follows the MonitorVolume performance presentation: a dark rounded surface with separate metric cards. The closed and open popover profiles are displayed independently; the chart does not rank, subtract, or otherwise compare those states. No unrelated provider or system accent colors are introduced.
 
 A session payload is written atomically when the app quits. It contains the tagged sample series, per-state aggregates, schema version, and validity. A session is valid only when both states have at least 15 seconds of tagged sample duration. Invalid sessions are reported by the measurement script and never become baselines.
 
-A committed resource baseline contains only per-state memory average and peak, CPU average, and provenance: machine, operating system, architecture, and executable SHA-256. It contains no series, provider quota data, accounting data, credentials, or Hermes runtime contents. The chart renderer reads this baseline and the existing launch baseline to produce one share-ready PNG.
+A committed resource baseline contains only per-state memory average and peak, CPU average, and provenance: machine, operating system, architecture, and executable SHA-256. It contains no series, provider quota data, accounting data, credentials, or Hermes runtime contents. The chart renderer reads this baseline and the existing launch baseline to produce one share-ready SVG.
 
 ## Threat model
 

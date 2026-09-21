@@ -13,7 +13,7 @@ ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # Bare `make` (no target) must never trigger build/install implicitly.
 .DEFAULT_GOAL := help
 
-.PHONY: build verify check test launch-baseline launch-check resource-baseline performance-chart clean help push-and-watch
+.PHONY: build verify check test launch-baseline launch-check resource-baseline performance-chart profile clean help push-and-watch
 
 # Build, assemble, sign, install and launch ~/Applications/HermesUsageMonitor.app.
 build:
@@ -47,6 +47,9 @@ resource-baseline:
 performance-chart:
 	cd "$(ROOT)" && "$(ROOT)scripts/render-performance-chart.py"
 
+# Capture the installed Release resource profile and regenerate the README asset.
+profile: resource-baseline performance-chart
+
 # Clean SwiftPM build artifacts only — never touches ~/Applications/HermesUsageMonitor.app.
 clean:
 	cd "$(ROOT)" && swift package clean
@@ -65,6 +68,7 @@ help:
 	@echo "  launch-baseline record 20 release launch samples and their budget"
 	@echo "  launch-check   compare 20 release launch samples with the budget"
 	@echo "  resource-baseline record a validated open/closed resource profile"
+	@echo "  profile         record the resource profile and regenerate the README asset"
 	@echo "  performance-chart render the README performance hero chart"
 	@echo "  clean          remove SwiftPM build artifacts (.build only)"
 	@echo "  push-and-watch push main and wait for the GitGuardian CI run"

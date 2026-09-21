@@ -1,118 +1,102 @@
 #!/usr/bin/env python3
 
 import argparse
+import html
 import json
-import struct
-import zlib
 from pathlib import Path
+from typing import Any
 
-WIDTH, HEIGHT = 1600, 1000
-BACKGROUND = (250, 250, 247, 255)
-INK = (18, 18, 18, 255)
-MUTED = (145, 145, 138, 255)
-PALE = (224, 224, 214, 255)
-ACCENT = (55, 55, 52, 255)
-
-FONT = {
-    "0": "111101101101111", "1": "010110010010111", "2": "111001111100111",
-    "3": "111001111001111", "4": "101101111001001", "5": "111100111001111",
-    "6": "111100111101111", "7": "111001001001001", "8": "111101111101111",
-    "9": "111101111001111", ".": "000000000000010", "%": "100001010100001",
-    "M": "100111101101101", "B": "110101110101110", "C": "111100100100111",
-    "H": "101101111101101", "D": "110101101101110", "/": "001001010100100",
-    "P": "110101110100100", "U": "101101101101111", "S": "011100010001110",
-    "E": "111100110100111", "N": "101111111111101", "O": "010101101101010",
-    "R": "110101110101101", "A": "010101111101101", "V": "111100100100100",
-    "G": "111100101101111", "T": "111010010010010", "F": "111100110100100",
-    "L": "100100100100111", "I": "111010010010111", "Y": "101101010010010",
-    "-": "000000111000000", " ": "000000000000000", ":": "000000010000010",
-}
+WIDTH, HEIGHT = 960, 560
+BACKGROUND = "#111111"
+CARD = "#1C1C1E"
+PRIMARY = "#F5F5F5"
+SECONDARY = "#8E8E93"
+GREEN = "#7DFFB3"
+BLUE = "#64D2FF"
+YELLOW = "#FFD60A"
 
 
-def put(pixels: bytearray, x: int, y: int, color: tuple[int, int, int, int]) -> None:
-    if 0 <= x < WIDTH and 0 <= y < HEIGHT:
-        offset = (y * WIDTH + x) * 4
-        pixels[offset:offset + 4] = bytes(color)
+def read_json(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise RuntimeError(f"baseline is missing: {path}")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise RuntimeError(f"baseline is not an object: {path}")
+    return value
 
 
-def rect(pixels: bytearray, x: int, y: int, width: int, height: int, color) -> None:
-    for row in range(max(0, y), min(HEIGHT, y + height)):
-        start = (row * WIDTH + max(0, x)) * 4
-        end = (row * WIDTH + min(WIDTH, x + width)) * 4
-        pixels[start:end] = bytes(color) * max(0, min(WIDTH, x + width) - max(0, x))
+def number(value: Any, label: str) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"baseline field {label} is not numeric") from error
+    if result < 0:
+        raise RuntimeError(f"baseline field {label} is negative")
+    return result
 
 
-def text(pixels: bytearray, value: str, x: int, y: int, scale: int = 4, color=INK) -> None:
-    cursor = x
-    for character in value.upper():
-        glyph = FONT.get(character, FONT[" "])
-        for index, bit in enumerate(glyph):
-            if bit == "1":
-                rect(pixels, cursor + (index % 3) * scale, y + (index // 3) * scale, scale, scale, color)
-        cursor += 4 * scale
+def text(value: str, x: int, y: int, *, size: int, color: str, anchor: str = "middle", weight: str = "400") -> str:
+    return (
+        f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{color}" '
+        f'font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="{size}" '
+        f'font-weight="{weight}">{html.escape(value)}</text>'
+    )
 
 
-def bar(pixels: bytearray, x: int, baseline: int, width: int, height: int, color) -> None:
-    rect(pixels, x, baseline - height, width, height, color)
-    rect(pixels, x, baseline - height, width, 5, INK)
-
-
-def write_png(path: Path, pixels: bytearray) -> None:
-    raw = b"".join(b"\x00" + pixels[row * WIDTH * 4:(row + 1) * WIDTH * 4] for row in range(HEIGHT))
-    def chunk(kind: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", WIDTH, HEIGHT, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+def card(x: int, title: str, metrics: list[tuple[str, str, str]]) -> str:
+    parts = [f'<rect x="{x}" y="112" width="280" height="360" rx="20" fill="{CARD}"/>']
+    parts.append(text(title, x + 140, 154, size=15, color=SECONDARY, weight="600"))
+    for index, (label, value, color) in enumerate(metrics):
+        y = 214 + index * 82
+        parts.append(text(label, x + 140, y, size=13, color=SECONDARY))
+        parts.append(text(value, x + 140, y + 38, size=26, color=color, weight="500"))
+    return "\n  ".join(parts)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Render the HermesUsageMonitor performance hero chart.")
+    parser = argparse.ArgumentParser(description="Render the HermesUsageMonitor performance profile.")
     parser.add_argument("--launch-baseline", type=Path, default=Path("scripts/launch-baseline.json"))
     parser.add_argument("--resource-baseline", type=Path, default=Path("scripts/resource-baseline.json"))
-    parser.add_argument("--output", type=Path, default=Path("Screenshots/performance-hero.png"))
+    parser.add_argument("--output", type=Path, default=Path("Screenshots/performance.svg"))
     args = parser.parse_args()
-    launch = json.loads(args.launch_baseline.read_text(encoding="utf-8"))
-    resource = json.loads(args.resource_baseline.read_text(encoding="utf-8"))
-    pixels = bytearray(bytes(BACKGROUND) * (WIDTH * HEIGHT))
-    text(pixels, "HERMES USAGE MONITOR", 100, 90, 7)
-    text(pixels, "PERFORMANCE PROFILE", 100, 150, 4, MUTED)
-    rect(pixels, 100, 220, 1400, 4, INK)
-    panels = [(100, "COLD LAUNCH"), (570, "MEMORY"), (1040, "CPU")]
-    for x, label in panels:
-        text(pixels, label, x, 280, 4)
-        rect(pixels, x, 340, 380, 5, PALE)
-        first_label, second_label = ("MEDIAN", "P95") if label == "COLD LAUNCH" else ("CLOSED", "OPEN")
-        text(pixels, first_label, x, 390, 3, MUTED)
-        text(pixels, second_label, x + 205, 390, 3, MUTED)
-    launch_values = [float(launch["medianMilliseconds"]), float(launch["p95Milliseconds"])]
-    memory_values = [resource["aggregates"]["closed"]["memoryAverageMegabytes"], resource["aggregates"]["open"]["memoryAverageMegabytes"]]
-    memory_peaks = [resource["aggregates"]["closed"]["memoryPeakMegabytes"], resource["aggregates"]["open"]["memoryPeakMegabytes"]]
-    cpu_values = [resource["aggregates"]["closed"]["cpuAveragePercent"], resource["aggregates"]["open"]["cpuAveragePercent"]]
-    for x, values, unit in [(100, launch_values, "MS"), (570, memory_values, "MB"), (1040, cpu_values, "%")]:
-        maximum = max(values) or 1
-        for index, value in enumerate(values):
-            height = int(300 * value / maximum)
-            bar(pixels, x + index * 205, 740, 120, max(8, height), INK if index == 1 else ACCENT)
-            text(pixels, f"{value:.1f}{unit}", x + index * 205, 790, 4)
-        rect(pixels, x, 740, 380, 4, INK)
-    memory_maximum = max(memory_peaks) or 1
-    for index, value in enumerate(memory_peaks):
-        height = int(300 * value / memory_maximum)
-        rect(pixels, 570 + index * 205, 740 - height, 120, 4, MUTED)
-    text(pixels, "MEDIAN / P95", 100, 875, 3, MUTED)
-    text(pixels, "AVERAGE FOOTPRINT", 570, 875, 3, MUTED)
-    text(pixels, "AVERAGE PROCESS CPU", 1040, 875, 3, MUTED)
-    text(pixels, f"PEAK {memory_peaks[0]:.1f}/{memory_peaks[1]:.1f} MB", 570, 930, 3, MUTED)
-    rect(pixels, 1360, 55, 12, 80, INK)
-    rect(pixels, 1400, 55, 12, 80, INK)
-    rect(pixels, 1360, 89, 52, 12, INK)
-    rect(pixels, 1450, 70, 10, 10, INK)
-    rect(pixels, 1470, 60, 10, 10, INK)
-    rect(pixels, 1490, 70, 10, 10, INK)
-    rect(pixels, 1470, 80, 10, 10, INK)
-    write_png(args.output, pixels)
+
+    launch = read_json(args.launch_baseline)
+    resource = read_json(args.resource_baseline)
+    aggregates = resource.get("aggregates")
+    if not isinstance(aggregates, dict):
+        raise RuntimeError("resource baseline has no aggregates")
+    closed = aggregates.get("closed")
+    opened = aggregates.get("open")
+    if not isinstance(closed, dict) or not isinstance(opened, dict):
+        raise RuntimeError("resource baseline must contain closed and open aggregates")
+
+    launch_median = number(launch.get("medianMilliseconds"), "medianMilliseconds")
+    launch_p95 = number(launch.get("p95Milliseconds"), "p95Milliseconds")
+
+    def state_metrics(state: dict[str, Any]) -> list[tuple[str, str, str]]:
+        return [
+            ("Physical footprint · average", f"{number(state.get('memoryAverageMegabytes'), 'memoryAverageMegabytes'):.1f} MiB", BLUE),
+            ("Physical footprint · peak", f"{number(state.get('memoryPeakMegabytes'), 'memoryPeakMegabytes'):.1f} MiB", BLUE),
+            ("Process CPU · average", f"{number(state.get('cpuAveragePercent'), 'cpuAveragePercent'):.3f}%", GREEN),
+        ]
+
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img">
+  <title>HermesUsageMonitor Release performance profile</title>
+  <rect width="{WIDTH}" height="{HEIGHT}" rx="28" fill="{BACKGROUND}"/>
+  {text("HermesUsageMonitor", WIDTH // 2, 48, size=20, color=PRIMARY, weight="600")}
+  {text("Release performance profile", WIDTH // 2, 78, size=13, color=SECONDARY)}
+  {card(40, "Cold launch", [("Median first appearance", f"{launch_median:.1f} ms", YELLOW), ("P95 first appearance", f"{launch_p95:.1f} ms", YELLOW), ("Installed Release", "verified", PRIMARY)])}
+  {card(340, "Popover closed", state_metrics(closed))}
+  {card(640, "Popover open", state_metrics(opened))}
+</svg>
+'''
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(svg, encoding="utf-8")
     print(args.output)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit(f"performance chart failed: {error}")

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img">
+  <title>HermesUsageMonitor Release performance profile</title>
+  <rect width="960" height="560" rx="28" fill="#111111"/>
+  <text x="480" y="48" text-anchor="middle" fill="#F5F5F5" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="20" font-weight="600">HermesUsageMonitor</text>
+  <text x="480" y="78" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Release performance profile</text>
+  <rect x="40" y="112" width="280" height="360" rx="20" fill="#1C1C1E"/>
+  <text x="180" y="154" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="15" font-weight="600">Cold launch</text>
+  <text x="180" y="214" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Median first appearance</text>
+  <text x="180" y="252" text-anchor="middle" fill="#FFD60A" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">135.7 ms</text>
+  <text x="180" y="296" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">P95 first appearance</text>
+  <text x="180" y="334" text-anchor="middle" fill="#FFD60A" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">176.3 ms</text>
+  <text x="180" y="378" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Installed Release</text>
+  <text x="180" y="416" text-anchor="middle" fill="#F5F5F5" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">verified</text>
+  <rect x="340" y="112" width="280" height="360" rx="20" fill="#1C1C1E"/>
+  <text x="480" y="154" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="15" font-weight="600">Popover closed</text>
+  <text x="480" y="214" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Physical footprint · average</text>
+  <text x="480" y="252" text-anchor="middle" fill="#64D2FF" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">15.7 MiB</text>
+  <text x="480" y="296" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Physical footprint · peak</text>
+  <text x="480" y="334" text-anchor="middle" fill="#64D2FF" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">25.6 MiB</text>
+  <text x="480" y="378" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Process CPU · average</text>
+  <text x="480" y="416" text-anchor="middle" fill="#7DFFB3" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">0.163%</text>
+  <rect x="640" y="112" width="280" height="360" rx="20" fill="#1C1C1E"/>
+  <text x="780" y="154" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="15" font-weight="600">Popover open</text>
+  <text x="780" y="214" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Physical footprint · average</text>
+  <text x="780" y="252" text-anchor="middle" fill="#64D2FF" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">26.3 MiB</text>
+  <text x="780" y="296" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Physical footprint · peak</text>
+  <text x="780" y="334" text-anchor="middle" fill="#64D2FF" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">26.6 MiB</text>
+  <text x="780" y="378" text-anchor="middle" fill="#8E8E93" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="13" font-weight="400">Process CPU · average</text>
+  <text x="780" y="416" text-anchor="middle" fill="#7DFFB3" font-family="SF Pro Text, Helvetica Neue, sans-serif" font-size="26" font-weight="500">1.744%</text>
+</svg>

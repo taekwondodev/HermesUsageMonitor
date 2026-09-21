@@ -32,9 +32,13 @@ Credentials stay in Hermes. HermesUsageMonitor stores no provider secrets and ne
 
 ## Performance
 
-![HermesUsageMonitor performance profile](Screenshots/performance-hero.png)
+Idle measurements of the installed Release app on Mac14,9, macOS 26.5 build 25F71, arm64. Physical footprint is the quantity Activity Monitor displays, not RSS.
 
-The chart combines the cold-launch baseline with average resident memory and CPU in the popover-closed and popover-open states. The installed Release artifact and its provenance are recorded in [`scripts/launch-baseline.json`](scripts/launch-baseline.json) and [`scripts/resource-baseline.json`](scripts/resource-baseline.json).
+<p align="center">
+  <img src="Screenshots/performance.svg" alt="HermesUsageMonitor Release performance profile">
+</p>
+
+The numbers come from `make profile`. They are not a historical HUD record.
 
 ## Build
 
@@ -43,4 +47,12 @@ make build
 ```
 
 The Makefile builds, signs, installs, and launches `HermesUsageMonitor.app` in `~/Applications`.
+
+## Profiling
+
+```bash
+make profile
+```
+
+The command measures the installed Release app at idle: cold-launch timing, plus separate CPU and physical-footprint profiles for the popover-closed and popover-open states. It does not compare the two states. It refuses to measure when the installed app is not the live process. It writes [`scripts/resource-baseline.json`](scripts/resource-baseline.json) and regenerates the chart above. A missing baseline fails the renderer; it never substitutes a value.
 
