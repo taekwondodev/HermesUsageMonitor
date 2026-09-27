@@ -115,13 +115,94 @@ struct HermesUsageMonitorAppTests {
             ) == [.chatGPT, .opencodeGo]
         )
         #expect(
-            SubscriptionOrderStore.movedBefore(
-                order,
-                visibleItems: order,
-                item: .chatGPT,
-                target: .opencodeGo
-            ) == [.chatGPT, .opencodeGo]
+            SubscriptionOrderStore.moved(order, item: .chatGPT, by: 1) == order
         )
+    }
+
+    @Test("reordering moves a card before another card or to the end")
+    func subscriptionOrderReordersCards() {
+        let order: [Subscription] = [.opencodeGo, .chatGPT]
+        let reversed: [Subscription] = [.chatGPT, .opencodeGo]
+
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: [.chatGPT], to: .before(.opencodeGo)
+            ) == reversed
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: [.opencodeGo], to: .end
+            ) == reversed
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                reversed, visibleItems: reversed, moving: [.opencodeGo], to: .before(.chatGPT)
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                reversed, visibleItems: reversed, moving: [.chatGPT], to: .end
+            ) == order
+        )
+    }
+
+    @Test("self-moves and invalid reorders leave the order unchanged")
+    func subscriptionOrderRejectsInvalidReorders() {
+        let order: [Subscription] = [.opencodeGo, .chatGPT]
+
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: [.chatGPT], to: .before(.chatGPT)
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: [.chatGPT], to: .end
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: [], to: .end
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: [.chatGPT, .chatGPT], to: .before(.opencodeGo)
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: order, moving: order, to: .end
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: [.opencodeGo], moving: [.chatGPT], to: .before(.opencodeGo)
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: [.chatGPT], moving: [.chatGPT], to: .before(.opencodeGo)
+            ) == order
+        )
+    }
+
+    @Test("visible-subset moves preserve absent subscriptions in the saved order")
+    func subscriptionOrderPreservesAbsentSubscriptions() {
+        let order: [Subscription] = [.opencodeGo, .chatGPT]
+
+        #expect(
+            SubscriptionOrderStore.reordered(
+                order, visibleItems: [.chatGPT], moving: [.chatGPT], to: .end
+            ) == order
+        )
+        #expect(
+            SubscriptionOrderStore.moved(
+                order, visibleItems: [.chatGPT], item: .chatGPT, by: -1
+            ) == order
+        )
+        #expect(SubscriptionOrderStore.normalize([.chatGPT]) == [.chatGPT, .opencodeGo])
+        #expect(SubscriptionOrderStore.normalize([]) == [.opencodeGo, .chatGPT])
     }
 
     @Test("persisted subscription order is normalized on load")
@@ -136,6 +217,38 @@ struct HermesUsageMonitorAppTests {
                 [.chatGPT, .opencodeGo]
         )
         #expect(defaults.array(forKey: "subscriptionOrder.v1") as? [String] == ["chatgpt", "opencode-go"])
+    }
+
+    @Test("missing, empty, or wrongly typed order preferences load the default order")
+    func invalidPersistedSubscriptionOrderLoadsDefault() {
+        let suiteName = "HermesUsageMonitorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaultOrder: [Subscription] = [.opencodeGo, .chatGPT]
+
+        #expect(SubscriptionOrderStore.load(defaults: defaults) == defaultOrder)
+
+        defaults.set([String](), forKey: "subscriptionOrder.v1")
+        #expect(SubscriptionOrderStore.load(defaults: defaults) == defaultOrder)
+
+        defaults.set("chatgpt", forKey: "subscriptionOrder.v1")
+        #expect(SubscriptionOrderStore.load(defaults: defaults) == defaultOrder)
+
+        defaults.set([1, 2], forKey: "subscriptionOrder.v1")
+        #expect(SubscriptionOrderStore.load(defaults: defaults) == defaultOrder)
+    }
+
+    @Test("reordered subscription order survives save and load")
+    func reorderedSubscriptionOrderRoundTrips() {
+        let suiteName = "HermesUsageMonitorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("unrelated", forKey: "otherPreference")
+
+        SubscriptionOrderStore.save([.chatGPT, .opencodeGo], defaults: defaults)
+
+        #expect(SubscriptionOrderStore.load(defaults: defaults) == [.chatGPT, .opencodeGo])
+        #expect(defaults.string(forKey: "otherPreference") == "unrelated")
     }
 
     @Test("notification adapter is disabled outside an app bundle")

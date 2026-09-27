@@ -10,7 +10,7 @@
 
 ## What it is
 
-- macOS 26+ menu bar app built with SwiftUI `MenuBarExtra`
+- macOS 27+ menu bar app built with SwiftUI `MenuBarExtra`
 - Live quota cards for ChatGPT and OpenCode Go
 - Provider reset countdowns and verified reset notifications
 - Hermes usage accounting for the rolling 30-day window

@@ -3,7 +3,6 @@ import Observation
 import AppKit
 import Darwin
 import SwiftUI
-import UniformTypeIdentifiers
 
 @main
 struct HermesUsageMonitorApp: App {
@@ -344,8 +343,6 @@ private struct UsagePopoverView: View {
     @State private var expandedSubscriptions: Set<Subscription> = []
     @State private var isManualResetExpanded = false
     @State private var orderedSubscriptions = SubscriptionOrderStore.load()
-    @State private var draggedSubscription: Subscription?
-    @State private var dropTarget: Subscription?
 
     var body: some View {
         ScrollView(.vertical) {
@@ -382,30 +379,11 @@ private struct UsagePopoverView: View {
                         isManualResetExpanded: $isManualResetExpanded,
                         onMove: moveSubscription
                     )
-                    .onDrag {
-                        draggedSubscription = subscription.subscription
-                        return NSItemProvider(object: subscription.subscription.rawValue as NSString)
-                    }
-                    .onDrop(
-                        of: [.text],
-                        isTargeted: Binding(
-                            get: { dropTarget == subscription.subscription },
-                            set: { targeted in
-                                dropTarget = targeted ? subscription.subscription : nil
-                            }
-                        )
-                    ) { _, _ in
-                        completeDrop(on: subscription.subscription)
-                    }
-                    .overlay {
-                        if dropTarget == subscription.subscription {
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.accentColor, lineWidth: 2)
-                                .padding(1)
-                                .allowsHitTesting(false)
-                        }
-                    }
                 }
+                .reorderable()
+            }
+            .reorderContainer(for: SubscriptionQuota.self) { difference in
+                reorderSubscriptions(difference)
             }
 
             }
@@ -443,43 +421,50 @@ private struct UsagePopoverView: View {
     }
 
     private func moveSubscription(_ subscription: Subscription, by offset: Int) {
-        let updatedOrder = SubscriptionOrderStore.moved(
-            orderedSubscriptions,
-            visibleItems: displaySubscriptions.map(\.subscription),
-            item: subscription,
-            by: offset
+        commitSubscriptionOrder(
+            SubscriptionOrderStore.moved(
+                orderedSubscriptions,
+                visibleItems: displaySubscriptions.map(\.subscription),
+                item: subscription,
+                by: offset
+            )
         )
+    }
+
+    private func reorderSubscriptions(
+        _ difference: ReorderDifference<SubscriptionQuota.ID, ReorderableSingleCollectionIdentifier>
+    ) {
+        let visible = displaySubscriptions
+        func subscription(for id: SubscriptionQuota.ID) -> Subscription? {
+            visible.first { $0.id == id }?.subscription
+        }
+
+        let items = difference.sources.compactMap(subscription(for:))
+        guard items.count == difference.sources.count else { return }
+
+        let destination: SubscriptionOrderDestination
+        switch difference.destination.position {
+        case let .before(id):
+            guard let target = subscription(for: id) else { return }
+            destination = .before(target)
+        case .end:
+            destination = .end
+        }
+
+        commitSubscriptionOrder(
+            SubscriptionOrderStore.reordered(
+                orderedSubscriptions,
+                visibleItems: visible.map(\.subscription),
+                moving: items,
+                to: destination
+            )
+        )
+    }
+
+    private func commitSubscriptionOrder(_ updatedOrder: [Subscription]) {
         guard updatedOrder != orderedSubscriptions else { return }
         orderedSubscriptions = updatedOrder
-        saveSubscriptionOrder()
-    }
-
-    private func saveSubscriptionOrder() {
-        SubscriptionOrderStore.save(orderedSubscriptions)
-    }
-
-    private func completeDrop(on target: Subscription) -> Bool {
-        guard let dragged = draggedSubscription,
-              dragged != target,
-              let draggedIndex = displaySubscriptions.firstIndex(where: { $0.subscription == dragged }),
-              let targetIndex = displaySubscriptions.firstIndex(where: { $0.subscription == target }) else {
-            draggedSubscription = nil
-            dropTarget = nil
-            return false
-        }
-
-        orderedSubscriptions = SubscriptionOrderStore.movedBefore(
-            orderedSubscriptions,
-            visibleItems: displaySubscriptions.map(\.subscription),
-            item: dragged,
-            target: target
-        )
-        if draggedIndex != targetIndex {
-            saveSubscriptionOrder()
-        }
-        draggedSubscription = nil
-        dropTarget = nil
-        return true
+        SubscriptionOrderStore.save(updatedOrder)
     }
 
     private var header: some View {
@@ -960,21 +945,39 @@ enum SubscriptionOrderStore {
         return result
     }
 
-    static func movedBefore(
+    /// Moves visible `items` before another visible card or after the last visible card.
+    /// Absent subscriptions keep their saved positions; self-moves and invalid moves return `order`.
+    static func reordered(
         _ order: [Subscription],
         visibleItems: [Subscription],
-        item: Subscription,
-        target: Subscription
+        moving items: [Subscription],
+        to destination: SubscriptionOrderDestination
     ) -> [Subscription] {
-        guard item != target,
-              visibleItems.contains(item),
-              visibleItems.contains(target) else { return order }
-        var result = order
-        result.removeAll { $0 == item }
-        guard let targetIndex = result.firstIndex(of: target) else { return order }
-        result.insert(item, at: targetIndex)
+        guard !items.isEmpty,
+              Set(items).count == items.count,
+              items.allSatisfy({ visibleItems.contains($0) && order.contains($0) }) else { return order }
+        let remainingVisible = visibleItems.filter { !items.contains($0) }
+        var result = order.filter { !items.contains($0) }
+
+        let insertionIndex: Int
+        switch destination {
+        case let .before(target):
+            guard remainingVisible.contains(target),
+                  let targetIndex = result.firstIndex(of: target) else { return order }
+            insertionIndex = targetIndex
+        case .end:
+            guard let last = remainingVisible.last,
+                  let lastIndex = result.firstIndex(of: last) else { return order }
+            insertionIndex = lastIndex + 1
+        }
+        result.insert(contentsOf: items, at: insertionIndex)
         return result
     }
+}
+
+enum SubscriptionOrderDestination: Equatable {
+    case before(Subscription)
+    case end
 }
 
 private struct AccountingDetail: View {

@@ -46,7 +46,7 @@ ASSET_PARTIAL_PLIST="${STAGE_ROOT}/assetcatalog-info.plist"
 xcrun actool \
     --compile "${RESOURCES}" \
     --platform macosx \
-    --minimum-deployment-target 26.0 \
+    --minimum-deployment-target 27.0 \
     --app-icon AppIcon \
     --output-partial-info-plist "${ASSET_PARTIAL_PLIST}" \
     --notices \
