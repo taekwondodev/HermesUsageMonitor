@@ -16,14 +16,14 @@ struct HermesUsageMonitorAppTests {
     func accountingDisplayBlocksPreserveModelMetrics() throws {
         let items = try [
             LocalAccounting(
-                subscription: .opencodeGo,
+                subscription: .chatGPT,
                 tokens: try AccountingTokens(input: 2_799_260, output: 553_512),
                 requests: 450,
                 models: ["deepseek-v4-flash"],
                 cost: try AccountingCost(amount: 0, currency: "USD")
             ),
             LocalAccounting(
-                subscription: .opencodeGo,
+                subscription: .chatGPT,
                 requests: 8,
                 models: ["mimo-v2.5", "gpt-5-mini"]
             )
@@ -37,7 +37,7 @@ struct HermesUsageMonitorAppTests {
                     requestsLabel: "450 richieste",
                     inputLabel: "2.799.260",
                     outputLabel: "553.512",
-                    costLabel: "0 USD"
+                    costLabel: "0,00 USD"
                 ),
                 AccountingDisplayBlock(
                     id: "1",
@@ -49,6 +49,28 @@ struct HermesUsageMonitorAppTests {
                 )
             ]
         )
+    }
+
+    @Test(
+        "rounds displayed costs to two Italian decimal digits without changing amounts",
+        arguments: [
+            ("1.234567", "1,23 USD"),
+            ("1.239999", "1,24 USD"),
+            ("0.004", "0,00 USD"),
+            ("0.006", "0,01 USD")
+        ]
+    )
+    func accountingDisplayBlocksRoundCosts(sample: (amount: String, label: String)) throws {
+        let amount = try #require(Decimal(string: sample.amount))
+        for subscription in [Subscription.chatGPT, .claude] {
+            let item = try LocalAccounting(
+                subscription: subscription,
+                cost: AccountingCost(amount: amount, currency: "USD")
+            )
+            let block = try #require(AccountingDisplayBlock.blocks(from: [item]).first)
+            #expect(block.costLabel == sample.label)
+            #expect(item.cost?.amount == amount)
+        }
     }
 
     @Test("formats token counts with Italian thousands separators")
@@ -72,8 +94,8 @@ struct HermesUsageMonitorAppTests {
         #expect(blocks[1].outputLabel == "999")
     }
 
-    @Test("provider identity assets are present in the executable bundle")
-    func providerAssetsAreBundled() {
+    @Test("provider identity source catalog contains the declared artwork")
+    func providerAssetsAreBundled() throws {
         let resources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -81,9 +103,17 @@ struct HermesUsageMonitorAppTests {
             .appendingPathComponent("Sources/HermesUsageMonitorApp/Resources")
 
         let catalog = resources.appendingPathComponent("Media.xcassets")
+        #expect(ProviderAssetCatalog.all == ["ChatGPTIcon", "AnthropicIcon"])
         for name in ProviderAssetCatalog.all + ["HermesMenuBarIcon"] {
             let imageSet = catalog.appendingPathComponent("\(name).imageset")
-            #expect(FileManager.default.fileExists(atPath: imageSet.appendingPathComponent("Contents.json").path))
+            let data = try Data(contentsOf: imageSet.appendingPathComponent("Contents.json"))
+            let contents = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let images = try #require(contents["images"] as? [[String: Any]])
+            let filenames = images.compactMap { $0["filename"] as? String }
+            #expect(filenames.isEmpty == false)
+            for filename in filenames {
+                #expect(FileManager.default.fileExists(atPath: imageSet.appendingPathComponent(filename).path))
+            }
         }
     }
 
@@ -91,36 +121,22 @@ struct HermesUsageMonitorAppTests {
     func subscriptionOrderNormalizes() {
         #expect(
             SubscriptionOrderStore.normalize([.chatGPT, .chatGPT]) ==
-                [.chatGPT, .opencodeGo]
+                [.chatGPT, .claude]
         )
     }
 
-    @Test("subscription order supports accessible move commands")
+    @Test("subscription order supports moving Claude and ChatGPT")
     func subscriptionOrderMovesItems() {
-        let order: [Subscription] = [.opencodeGo, .chatGPT]
-        #expect(
-            SubscriptionOrderStore.moved(order, item: .chatGPT, by: -1) ==
-                [.chatGPT, .opencodeGo]
-        )
-        #expect(
-            SubscriptionOrderStore.moved(order, item: .opencodeGo, by: -1) == order
-        )
-
-        #expect(
-            SubscriptionOrderStore.moved(
-                order,
-                visibleItems: order,
-                item: .opencodeGo,
-                by: 1
-            ) == [.chatGPT, .opencodeGo]
-        )
+        let order: [Subscription] = [.chatGPT, .claude]
+        #expect(SubscriptionOrderStore.moved(order, item: .chatGPT, by: -1) == order)
+        #expect(SubscriptionOrderStore.moved(order, item: .claude, by: -1) == [.claude, .chatGPT])
         #expect(
             SubscriptionOrderStore.movedBefore(
                 order,
                 visibleItems: order,
-                item: .chatGPT,
-                target: .opencodeGo
-            ) == [.chatGPT, .opencodeGo]
+                item: .claude,
+                target: .chatGPT
+            ) == [.claude, .chatGPT]
         )
     }
 
@@ -133,9 +149,9 @@ struct HermesUsageMonitorAppTests {
 
         #expect(
             SubscriptionOrderStore.load(defaults: defaults) ==
-                [.chatGPT, .opencodeGo]
+                [.chatGPT, .claude]
         )
-        #expect(defaults.array(forKey: "subscriptionOrder.v1") as? [String] == ["chatgpt", "opencode-go"])
+        #expect(defaults.array(forKey: "subscriptionOrder.v1") as? [String] == ["chatgpt", "claude"])
     }
 
     @Test("notification adapter is disabled outside an app bundle")

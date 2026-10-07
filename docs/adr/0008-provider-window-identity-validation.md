@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-08-25
 
+## Scope update: ChatGPT and Claude tracking
+
+OpenCode Go tracking is removed. Its closed-window restrictions and display-order behavior below are historical and superseded. ChatGPT identity validation, opaque window support, provider-order disambiguation, and secrets boundaries remain unchanged. Claude uses the same validated opaque domain identity for its distinct Fable weekly limit; it is never merged into the all-model weekly limit. Both live and file-based Claude observations preserve that identity.
+
 ## Context
 
 ChatGPT can add quota windows without first exposing a commercial name known by HermesUsageMonitor. The app must preserve those observations, while OpenCode Go keeps its existing closed set of supported windows. Window kind and label are provider-controlled input and cross the bridge into the Swift domain, UI, refresh scheduler, and reset notifications.

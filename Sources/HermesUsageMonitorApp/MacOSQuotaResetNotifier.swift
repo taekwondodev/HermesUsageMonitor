@@ -57,10 +57,10 @@ private extension QuotaResetNotification {
 private extension Subscription {
     var displayName: String {
         switch self {
-        case .opencodeGo:
-            return "OpenCode Go"
         case .chatGPT:
             return "ChatGPT"
+        case .claude:
+            return "Claude"
         }
     }
 }

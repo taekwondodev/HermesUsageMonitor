@@ -41,32 +41,62 @@ struct ProfileQuotaRefreshServiceTests {
         #expect(state.subscriptions.count == 2)
     }
 
-    @Test("preserves the last snapshot for a partially unavailable subscription")
-    func preservesPartialSnapshot() async throws {
+    @Test("preserves the last snapshot when the provider reports unavailable")
+    func preservesSnapshotWhenProviderUnavailable() async throws {
+        let unavailable = try ProfileQuotaObservation(
+            profile: try HermesProfileID(value: "test"),
+            subscription: .chatGPT,
+            observedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 200)),
+            result: .unavailable(.sourceUnreadable)
+        )
         let source = SequenceSource(reads: [
-            [try observation(subscription: .chatGPT, usedPercent: 25),
-             try observation(subscription: .opencodeGo, usedPercent: 40)],
-            [try observation(subscription: .chatGPT, usedPercent: 10)]
+            [try observation(usedPercent: 25)],
+            [unavailable]
         ])
         let service = ProfileQuotaRefreshService(source: source, clock: Date.init)
 
         _ = await service.refresh()
-        let partial = await service.refresh()
+        let state = await service.refresh()
 
-        guard case let .snapshot(chatGPT) = partial.subscriptions.first(where: {
+        #expect(state.availability == .live)
+        #expect(state.subscriptions.count == 2)
+        guard case let .snapshot(snapshot) = state.subscriptions.first(where: {
             $0.subscription == .chatGPT
-        })?.result,
-        case let .snapshot(opencode) = partial.subscriptions.first(where: {
-            $0.subscription == .opencodeGo
         })?.result else {
-            Issue.record("Expected both subscriptions to retain usable snapshots")
+            Issue.record("Expected the last ChatGPT snapshot to remain usable")
             return
         }
+        #expect(snapshot.freshness == .stale)
+        #expect(snapshot.windows[0].usedPercent == 25)
+    }
 
-        #expect(chatGPT.freshness == .live)
-        #expect(chatGPT.windows[0].usedPercent == 10)
-        #expect(opencode.freshness == .stale)
-        #expect(opencode.windows[0].usedPercent == 40)
+    @Test("keeps Claude stale while ChatGPT remains live after a provider failure")
+    func isolatesClaudeRefreshFailure() async throws {
+        let unavailable = try ProfileQuotaObservation(
+            profile: try HermesProfileID(value: "test"),
+            subscription: .claude,
+            observedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 200)),
+            result: .unavailable(.authenticationFailed)
+        )
+        let source = SequenceSource(reads: [
+            [try observation(subscription: .claude, usedPercent: 74), try observation(usedPercent: 25)],
+            [unavailable, try observation(usedPercent: 10)]
+        ])
+        let service = ProfileQuotaRefreshService(source: source, clock: Date.init)
+        _ = await service.refresh()
+        let state = await service.refresh()
+        let claude = try #require(state.subscriptions.first { $0.subscription == .claude })
+        let chatGPT = try #require(state.subscriptions.first { $0.subscription == .chatGPT })
+        guard case let .snapshot(stale) = claude.result,
+              case let .snapshot(live) = chatGPT.result else {
+            Issue.record("Expected both retained provider snapshots")
+            return
+        }
+        #expect(state.availability == .live)
+        #expect(stale.freshness == .stale)
+        #expect(stale.windows[0].usedPercent == 74)
+        #expect(live.freshness == .live)
+        #expect(live.windows[0].usedPercent == 10)
     }
 
     @Test("propagates quota and manual reset state from one usage read")

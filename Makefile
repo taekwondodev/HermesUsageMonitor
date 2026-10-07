@@ -27,9 +27,10 @@ verify:
 check:
 	"$(ROOT)scripts/verify-hermes-compatibility.py"
 
-# Run the SwiftUI package test suite (quick iteration).
+# Run the Swift package and bundled bridge test suites.
 test:
 	cd "$(ROOT)" && swift test
+	cd "$(ROOT)" && python3 -m unittest discover -s Tests -p '*_test.py'
 
 # Record the installed release app's menu-bar first-appearance baseline.
 launch-baseline:
@@ -64,7 +65,7 @@ help:
 	@echo "  build          assemble, sign, install and launch the app (build-app.sh)"
 	@echo "  verify         check an installed app bundle, then launch it"
 	@echo "  check          verify Hermes update-to-app compatibility"
-	@echo "  test           run the SwiftPM test suite"
+	@echo "  test           run the Swift and Python bridge test suites"
 	@echo "  launch-baseline record 20 release launch samples and their budget"
 	@echo "  launch-check   compare 20 release launch samples with the budget"
 	@echo "  resource-baseline record a validated open/closed resource profile"

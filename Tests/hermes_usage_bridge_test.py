@@ -19,6 +19,9 @@ spec.loader.exec_module(bridge)
 
 
 class HermesUsageBridgeTests(unittest.TestCase):
+    def test_tracks_chatgpt_and_claude(self):
+        self.assertEqual(bridge.PROVIDERS, (("openai-codex", "chatgpt"), ("anthropic", "claude")))
+
     def test_builds_quota_payload_for_supported_windows(self):
         snapshot = SimpleNamespace(
             source="usage_api",
@@ -123,41 +126,7 @@ class HermesUsageBridgeTests(unittest.TestCase):
             "reason": "manual reset source unavailable",
         })
 
-    def test_direct_opencode_payload_supports_usage_shape(self):
-        class Response:
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return {"usage": {
-                    "rolling": {"percent": 12.5, "resetsAt": "2030-03-17T17:00:00Z"},
-                    "weekly": {"percent": 45.0, "resetsAt": "2030-03-24T00:00:00Z"},
-                }}
-
-        class Client:
-            def __init__(self, **_kwargs):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                pass
-
-            def get(self, *_args, **_kwargs):
-                return Response()
-
-        api = bridge.UsageAPI(
-            fetch_account_usage=lambda _provider: None,
-            resolve_runtime_provider=lambda **_kwargs: {"api_key": "[REDACTED]", "base_url": "https://example.invalid"},
-            httpx=SimpleNamespace(Client=Client),
-        )
-        snapshot = bridge.opencode_snapshot(api)
-        result = bridge.snapshot_payload("opencode-go", "opencode-go", snapshot)
-        self.assertEqual(result.payload["windows"][0]["kind"], "rolling-5h")
-        self.assertEqual(result.payload["windows"][0]["usedPercent"], 12.5)
-
-    def test_opencode_technical_kind_precedes_conflicting_label(self):
+    def test_chatgpt_technical_kind_precedes_conflicting_label(self):
         snapshot = SimpleNamespace(
             source="usage_api",
             fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
@@ -171,89 +140,16 @@ class HermesUsageBridgeTests(unittest.TestCase):
                 detail=None,
             ),),
         )
-        result = bridge.snapshot_payload("opencode-go", "opencode-go", snapshot)
+        result = bridge.snapshot_payload("openai-codex", "chatgpt", snapshot)
         self.assertEqual(result.payload["windows"][0]["kind"], "rolling-5h")
 
-    def test_opencode_windows_shape_canonicalizes_rolling_label(self):
-        class Response:
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return {"windows": [{
-                    "kind": "rolling",
-                    "label": "rolling",
-                    "usedPercent": 12.5,
-                    "resetAt": "2030-03-17T17:00:00Z",
-                }]}
-
-        class Client:
-            def __init__(self, **_kwargs):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                pass
-
-            def get(self, *_args, **_kwargs):
-                return Response()
-
-        api = bridge.UsageAPI(
-            fetch_account_usage=lambda _provider: None,
-            resolve_runtime_provider=lambda **_kwargs: {"api_key": "[REDACTED]", "base_url": "https://example.invalid"},
-            httpx=SimpleNamespace(Client=Client),
-        )
-        result = bridge.opencode_snapshot(api)
-        self.assertEqual(result.windows[0].kind, "rolling-5h")
-        self.assertEqual(result.windows[0].label, "5 hours")
-
-    def test_opencode_windows_shape_rejects_empty_technical_kind(self):
-        class Response:
-            def raise_for_status(self):
-                pass
-
-            def json(self):
-                return {"windows": [{"kind": "", "label": "Weekly", "usedPercent": 10.0}]}
-
-        class Client:
-            def __init__(self, **_kwargs):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                pass
-
-            def get(self, *_args, **_kwargs):
-                return Response()
-
-        api = bridge.UsageAPI(
-            fetch_account_usage=lambda _provider: None,
-            resolve_runtime_provider=lambda **_kwargs: {"api_key": "[REDACTED]", "base_url": "https://example.invalid"},
-            httpx=SimpleNamespace(Client=Client),
-        )
-        self.assertIsNone(bridge.opencode_snapshot(api))
-
-    def test_unknown_window_becomes_unavailable(self):
-        snapshot = SimpleNamespace(
-            source="usage_api", fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
-            plan=None, unavailable_reason=None,
-            windows=(SimpleNamespace(label="Yearly", used_percent=1.0, reset_at=None, detail=None),),
-        )
-        result = bridge.snapshot_payload("opencode-go", "opencode-go", snapshot)
-        self.assertEqual(result.payload["status"], "unavailable")
-        self.assertEqual(result.payload["reason"], "quota unavailable")
-
-    def test_unknown_window_or_invalid_percentage_becomes_unavailable(self):
+    def test_invalid_percentage_becomes_unavailable(self):
         snapshot = SimpleNamespace(
             source="usage_api", fetched_at=datetime(2030, 3, 17, 12, 0, tzinfo=timezone.utc),
             plan=None, unavailable_reason=None,
             windows=(SimpleNamespace(label="Weekly", used_percent=101.0, reset_at=None, detail=None),),
         )
-        result = bridge.snapshot_payload("opencode-go", "opencode-go", snapshot)
+        result = bridge.snapshot_payload("openai-codex", "chatgpt", snapshot)
         self.assertEqual(result.payload["status"], "unavailable")
         self.assertEqual(result.payload["reason"], "quota unavailable")
 
@@ -280,7 +176,6 @@ class HermesUsageBridgeTests(unittest.TestCase):
 
         result = bridge.collect_provider("openai-codex", "chatgpt", bridge.UsageAPI(
             fetch_account_usage=fail,
-            resolve_runtime_provider=lambda **_kwargs: {},
             httpx=None,
         ))
         self.assertEqual(result.payload, {
@@ -314,7 +209,7 @@ class HermesUsageBridgeTests(unittest.TestCase):
             lambda *_args, **_kwargs: Worker('{"status":"available"}'),
         )
         timed_out = bridge.run_worker(
-            "opencode-go", "opencode-go", Path("/tmp/hermes"), float("inf"),
+            "openai-codex", "chatgpt", Path("/tmp/hermes"), float("inf"),
             lambda *_args, **_kwargs: Worker("", timed_out=True),
         )
         self.assertEqual(valid.payload["status"], "available")
@@ -344,9 +239,7 @@ class HermesUsageBridgeTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 (root / "agent").mkdir()
-                (root / "hermes_cli").mkdir()
                 (root / "agent" / "__init__.py").write_text("")
-                (root / "hermes_cli" / "__init__.py").write_text("")
                 (root / "agent" / "account_usage.py").write_text(textwrap.dedent("""
                     def fetch_account_usage(_provider):
                         return None
@@ -356,10 +249,6 @@ class HermesUsageBridgeTests(unittest.TestCase):
 
                     def _codex_backend_urls(_base):
                         return ("usage", "credits", "consume")
-                """))
-                (root / "hermes_cli" / "runtime_provider.py").write_text(textwrap.dedent("""
-                    def resolve_runtime_provider(**_kwargs):
-                        return {}
                 """))
                 (root / "httpx.py").write_text(textwrap.dedent("""
                     CODE = {"code": __CODE__}
@@ -415,9 +304,7 @@ class HermesUsageBridgeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "agent").mkdir()
-            (root / "hermes_cli").mkdir()
             (root / "agent" / "__init__.py").write_text("")
-            (root / "hermes_cli" / "__init__.py").write_text("")
             (root / "agent" / "account_usage.py").write_text(textwrap.dedent("""
                 def fetch_account_usage(_provider):
                     return None
@@ -427,10 +314,6 @@ class HermesUsageBridgeTests(unittest.TestCase):
 
                 def _codex_backend_urls(_base):
                     return ("usage", "credits", "consume")
-            """))
-            (root / "hermes_cli" / "runtime_provider.py").write_text(textwrap.dedent("""
-                def resolve_runtime_provider(**_kwargs):
-                    return {}
             """))
             (root / "httpx.py").write_text(textwrap.dedent("""
                 class HTTPStatusError(Exception):
@@ -471,6 +354,150 @@ class HermesUsageBridgeTests(unittest.TestCase):
             payload = json.loads(completed.stdout)
             self.assertEqual(payload["status"], "rejected")
 
+    def test_anthropic_structured_limits_keep_fable_identity_and_percentages(self):
+        snapshot = bridge._anthropic_snapshot({"limits": [
+            {"kind": "session", "group": "session", "percent": 100, "resets_at": "2030-03-17T17:00:00Z"},
+            {"kind": "weekly_all", "group": "weekly", "percent": 0.5, "resets_at": None},
+            {"kind": "weekly_scoped", "group": "weekly", "percent": 74, "is_active": False,
+             "scope": {"model": {"id": None, "display_name": "Fable"}},
+             "resets_at": "2030-03-20T12:00:00Z"},
+            {"kind": "weekly_scoped", "group": "weekly", "percent": 99,
+             "scope": {"model": {"display_name": "Opus"}}},
+        ]})
+        result = bridge.snapshot_payload("anthropic", "claude", snapshot)
+        self.assertEqual(result.payload["status"], "available")
+        self.assertEqual(
+            [(w["kind"], w["label"], w["usedPercent"]) for w in result.payload["windows"]],
+            [("rolling-5h", "5 hours", 100.0), ("weekly", "Weekly", 0.5),
+             ("fable-weekly", "Fable", 74.0)],
+        )
+        self.assertEqual(result.payload["windows"][1]["resetAt"], None)
+        self.assertEqual(result.payload["windows"][2]["resetAt"], "2030-03-20T12:00:00Z")
+
+    def test_anthropic_flat_fallback_only_when_structured_limits_absent(self):
+        fallback = bridge._anthropic_snapshot({
+            "five_hour": {"utilization": 0.5, "resets_at": None},
+            "seven_day": {"utilization": 66, "resets_at": "2030-03-20T12:00:00Z"},
+            "iguana_necktie": {"utilization": 99},
+        })
+        result = bridge.snapshot_payload("anthropic", "claude", fallback)
+        self.assertEqual([w["kind"] for w in result.payload["windows"]], ["rolling-5h", "weekly"])
+        self.assertEqual(result.payload["windows"][0]["usedPercent"], 0.5)
+        self.assertEqual(result.payload["windows"][0]["resetAt"], None)
+        no_fable = bridge._anthropic_snapshot({"limits": [
+            {"kind": "session", "group": "session", "percent": 1},
+            {"kind": "weekly_all", "group": "weekly", "percent": 2},
+        ]})
+        self.assertEqual([w["kind"] for w in bridge.snapshot_payload("anthropic", "claude", no_fable).payload["windows"]],
+                         ["rolling-5h", "weekly"])
+        self.assertEqual(bridge._anthropic_snapshot({"limits": [], "five_hour": {"utilization": 5}}).windows, ())
+
+    def test_anthropic_malformed_input_is_sanitized_and_duplicates_rejected(self):
+        for payload in (
+            [], {"limits": {}}, {"limits": [{"kind": "session", "group": "session", "percent": float("nan")}]},
+            {"limits": [{"kind": "session", "group": "session", "percent": 101}]},
+            {"limits": [{"kind": "session", "group": "session", "percent": 1, "resets_at": "not-a-date"}]},
+            {"limits": [{"kind": "session", "group": "session", "percent": 1}, {"kind": "session", "group": "session", "percent": 2}]},
+        ):
+            with self.subTest(payload=payload):
+                try:
+                    snapshot = bridge._anthropic_snapshot(payload)
+                except ValueError:
+                    continue
+                result = bridge.snapshot_payload("anthropic", "claude", snapshot)
+                self.assertEqual(result.payload["status"], "unavailable")
+                self.assertNotIn("not-a-date", json.dumps(result.payload))
+
+    def test_anthropic_worker_uses_existing_oauth_only_and_is_read_only(self):
+        available = self.run_anthropic_worker(
+            [{"auth_type": "oauth", "access_token": "oauth-test-token-live", "expires_at": 4102444800}],
+            {"limits": [
+                {"kind": "session", "group": "session", "percent": 5},
+                {"kind": "weekly_all", "group": "weekly", "percent": 66},
+                {"kind": "weekly_scoped", "group": "weekly", "percent": 74,
+                 "scope": {"model": {"display_name": "Fable"}}},
+            ]},
+        )
+        self.assertEqual(available["status"], "available")
+        self.assertEqual([w["kind"] for w in available["windows"]],
+                         ["rolling-5h", "weekly", "fable-weekly"])
+        expired = self.run_anthropic_worker(
+            [{"auth_type": "oauth", "access_token": "oauth-test-token-expired", "expires_at": 1}],
+            {"limits": []},
+        )
+        non_oauth = self.run_anthropic_worker(
+            [{"auth_type": "api_key", "access_token": "api-key-test-value"}], {"limits": []},
+        )
+        missing = self.run_anthropic_worker([], {"limits": []})
+        corrupt = self.run_anthropic_worker([], {"limits": []}, corrupt_store=True)
+        for result in (expired, non_oauth, missing, corrupt):
+            self.assertEqual(result["status"], "unavailable")
+            self.assertEqual(result["reason"], "OAuth credentials unavailable")
+
+    def test_anthropic_worker_network_failure_is_safe_and_provider_isolated(self):
+        failed = self.run_anthropic_worker(
+            [{"auth_type": "oauth", "access_token": "oauth-test-token-live", "expires_at": 4102444800}],
+            {"secret": "raw-body-must-not-escape"}, fail=True,
+        )
+        self.assertEqual(failed, {
+            "status": "unavailable", "subscription": "claude", "reason": "provider unavailable",
+        })
+        chatgpt = bridge.collect_provider("openai-codex", "chatgpt", bridge.UsageAPI(
+            fetch_account_usage=lambda _provider: None, httpx=None,
+        ))
+        self.assertEqual(chatgpt.payload["subscription"], "chatgpt")
+
+    def run_anthropic_worker(self, entries, response_payload, fail=False, corrupt_store=False):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "agent").mkdir()
+            (root / "agent" / "__init__.py").write_text("")
+            (root / "agent" / "account_usage.py").write_text("def fetch_account_usage(_provider): return None\n")
+            (root / "agent" / "anthropic_credentials.py").write_text(textwrap.dedent("""
+                def _is_oauth_token(value):
+                    return isinstance(value, str) and value.startswith("oauth-test-token-")
+                def _first_env(*_names): return None
+                def is_claude_code_token_valid(_record): return False
+                def resolve_anthropic_token(*_args, **_kwargs): raise AssertionError("resolver must not run")
+                def read_hermes_oauth_credentials(): return None
+                def read_claude_code_credentials(): return None
+            """))
+            (root / "hermes_cli").mkdir()
+            (root / "hermes_cli" / "__init__.py").write_text("")
+            auth_path = root / "auth.json"
+            auth_content = "not-json" if corrupt_store else json.dumps({"credential_pool": {"anthropic": entries}})
+            auth_path.write_text(auth_content)
+            (root / "hermes_cli" / "auth.py").write_text(
+                "from pathlib import Path\n"
+                "def _auth_file_path(): return Path(__file__).parents[1] / 'auth.json'\n"
+                "def _global_auth_file_path(): return None\n"
+                "def read_credential_pool(*_args): raise AssertionError('write-capable loader forbidden')\n"
+                "def _save_auth_store(*_args, **_kwargs): raise AssertionError('writes forbidden')\n"
+            )
+            (root / "httpx.py").write_text(textwrap.dedent(f"""
+                PAYLOAD = {response_payload!r}
+                class Response:
+                    def raise_for_status(self):
+                        {"raise RuntimeError('secret-token raw-body-must-not-escape')" if fail else "pass"}
+                    def json(self): return PAYLOAD
+                class Client:
+                    def __init__(self, **_kwargs): pass
+                    def __enter__(self): return self
+                    def __exit__(self, *_args): pass
+                    def get(self, _url, **_kwargs): return Response()
+            """))
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), "--worker", "anthropic", "--json", "--hermes-root", str(root)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertNotIn("secret-token", completed.stdout)
+            self.assertNotIn("oauth-test-token-", completed.stdout)
+            self.assertEqual(auth_path.read_text(), auth_content)
+            self.assertFalse((root / "auth.json.corrupt").exists())
+            self.assertFalse((root / "auth.lock").exists())
+            return json.loads(completed.stdout)
+
     def run_openai_worker(
         self,
         credits,
@@ -481,9 +508,7 @@ class HermesUsageBridgeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "agent").mkdir()
-            (root / "hermes_cli").mkdir()
             (root / "agent" / "__init__.py").write_text("")
-            (root / "hermes_cli" / "__init__.py").write_text("")
             helpers = """
             def _resolve_codex_usage_credentials(*_args):
                 return ("test-token", "https://example.invalid", "test-account")
@@ -541,10 +566,6 @@ class HermesUsageBridgeTests(unittest.TestCase):
             (root / "agent" / "account_usage.py").write_text(
                 account_usage_source + "\n" + textwrap.dedent(helpers)
             )
-            (root / "hermes_cli" / "runtime_provider.py").write_text(textwrap.dedent("""
-                def resolve_runtime_provider(**_kwargs):
-                    return {}
-            """))
             (root / "httpx.py").write_text(textwrap.dedent(f"""
                 nan = float("nan")
                 CREDITS = {credits!r}

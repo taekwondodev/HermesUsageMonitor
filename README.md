@@ -11,7 +11,7 @@
 ## What it is
 
 - macOS 26+ menu bar app built with SwiftUI `MenuBarExtra`
-- Live quota cards for ChatGPT and OpenCode Go
+- Live quota cards for ChatGPT and Claude (five hours, Weekly, and Fable)
 - Provider reset countdowns and verified reset notifications
 - Hermes usage accounting for the rolling 30-day window
 - Manual reset redemption flow with explicit verification
@@ -27,6 +27,8 @@
 Credentials stay in Hermes. HermesUsageMonitor stores no provider secrets and never derives official quota percentages from local accounting.
 
 ## Screenshots
+
+Historical screenshot from before ChatGPT-only tracking:
 
 <img src="Screenshots/popover.png" width="300" alt="HermesUsageMonitor popover">
 

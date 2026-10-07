@@ -196,7 +196,7 @@ private extension HermesUsageCommandReader {
         return payload.providers.compactMap { providerID, provider in
             guard let subscription = Subscription(rawValue: provider.subscription),
                   (providerID == "openai-codex" && subscription == .chatGPT)
-                    || (providerID == "opencode-go" && subscription == .opencodeGo) else {
+                    || (providerID == "anthropic" && subscription == .claude) else {
                 return nil
             }
 
@@ -205,9 +205,6 @@ private extension HermesUsageCommandReader {
                 result = .unavailable(provider.unavailableReason)
             } else {
                 let windows = (provider.windows ?? []).compactMap { window -> QuotaWindow? in
-                    if subscription != .chatGPT, case .opaque = window.kind {
-                        return nil
-                    }
                     guard let usedPercent = window.usedPercent else { return nil }
                     return try? QuotaWindow(
                         kind: window.kind,

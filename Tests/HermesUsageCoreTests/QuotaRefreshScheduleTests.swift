@@ -57,27 +57,27 @@ struct QuotaRefreshScheduleTests {
 
         #expect(
             QuotaRefreshSchedule.expiredLiveWindows(in: state, now: now)
-                == [QuotaWindowReference(subscription: .opencodeGo, kind: .rollingFiveHours)]
+                == [QuotaWindowReference(subscription: .chatGPT, kind: .rollingFiveHours)]
         )
         #expect(
             QuotaRefreshSchedule.shouldRetry(
                 state: state,
-                attemptedWindows: [QuotaWindowReference(subscription: .opencodeGo, kind: .rollingFiveHours)],
+                attemptedWindows: [QuotaWindowReference(subscription: .chatGPT, kind: .rollingFiveHours)],
                 now: now
             )
         )
     }
 
-    @Test("tracks an unknown window through expiry and retry")
-    func tracksUnknownWindowThroughExpiry() throws {
-        let kind = try QuotaWindowKind.unknown("rolling-7d")
+    @Test("tracks an unknown window through expiry and retry", arguments: [Subscription.chatGPT, .claude])
+    func tracksUnknownWindowThroughExpiry(subscription: Subscription) throws {
+        let kind = try QuotaWindowKind.unknown(subscription == .claude ? "fable-weekly" : "rolling-7d")
         let baselineState = try state(
-            subscription: .chatGPT,
+            subscription: subscription,
             availability: .live,
             freshness: .live,
             windows: [try window(kind: kind, usedPercent: 80, resetAt: 900)]
         )
-        let reference = QuotaWindowReference(subscription: .chatGPT, kind: kind)
+        let reference = QuotaWindowReference(subscription: subscription, kind: kind)
 
         #expect(QuotaRefreshSchedule.expiredLiveWindows(in: baselineState, now: Date(timeIntervalSince1970: 1_000)) == [reference])
         #expect(QuotaRefreshSchedule.shouldRetry(
@@ -87,7 +87,7 @@ struct QuotaRefreshScheduleTests {
         ))
 
         let futureState = try state(
-            subscription: .chatGPT,
+            subscription: subscription,
             availability: .live,
             freshness: .live,
             windows: [try window(kind: kind, usedPercent: 80, resetAt: 1_100)]
@@ -110,14 +110,14 @@ struct QuotaRefreshScheduleTests {
     func retriesPartialLiveResult() {
         let state = SubscriptionRefreshState(
             subscriptions: [SubscriptionQuota(
-                subscription: .opencodeGo,
+                subscription: .chatGPT,
                 result: .unavailable(.sourceMissing)
             )],
             availability: .live,
             updatedAt: nil
         )
         let attempted: Set<QuotaWindowReference> = [
-            QuotaWindowReference(subscription: .opencodeGo, kind: .rollingFiveHours)
+            QuotaWindowReference(subscription: .chatGPT, kind: .rollingFiveHours)
         ]
 
         #expect(
@@ -136,7 +136,7 @@ struct QuotaRefreshScheduleTests {
             freshness: .stale,
             windows: [try window(kind: .rollingFiveHours, usedPercent: 80, resetAt: 900)]
         )
-        let attempted: Set<QuotaWindowReference> = [QuotaWindowReference(subscription: .opencodeGo, kind: .rollingFiveHours)]
+        let attempted: Set<QuotaWindowReference> = [QuotaWindowReference(subscription: .chatGPT, kind: .rollingFiveHours)]
 
         #expect(
             QuotaRefreshSchedule.shouldRetry(
@@ -149,7 +149,7 @@ struct QuotaRefreshScheduleTests {
     }
 
     private func state(
-        subscription: Subscription = .opencodeGo,
+        subscription: Subscription = .chatGPT,
         availability: RefreshAvailability,
         freshness: QuotaFreshness,
         windows: [QuotaWindow]

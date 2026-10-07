@@ -18,16 +18,16 @@ struct QuotaResetNotificationServiceTests {
         #expect(notifications[0].events[0].windowKind == .rollingFiveHours)
     }
 
-    @Test("notifies for a verified reset of an unknown window")
-    func notifiesForUnknownWindowReset() async throws {
+    @Test("notifies for a verified reset of an unknown window", arguments: [Subscription.chatGPT, .claude])
+    func notifiesForUnknownWindowReset(subscription: Subscription) async throws {
         let notifier = RecordingNotifier()
         let service = QuotaResetNotificationService(notifier: notifier)
-        let kind = try QuotaWindowKind.unknown("rolling-7d")
+        let kind = try QuotaWindowKind.unknown(subscription == .claude ? "fable-weekly" : "rolling-7d")
 
-        await service.process(try state(windows: [
+        await service.process(try state(subscription: subscription, windows: [
             window(kind: kind, label: "Longer window", usedPercent: 90, resetAt: 1_000)
         ]))
-        await service.process(try state(windows: [
+        await service.process(try state(subscription: subscription, windows: [
             window(kind: kind, label: "Longer window", usedPercent: 0, resetAt: 2_000)
         ]))
 
@@ -35,7 +35,7 @@ struct QuotaResetNotificationServiceTests {
         #expect(notifications.count == 1)
         #expect(notifications[0].events == [
             QuotaResetEvent(
-                subscription: .chatGPT,
+                subscription: subscription,
                 windowKind: kind,
                 windowLabel: "Longer window"
             )
@@ -170,6 +170,7 @@ struct QuotaResetNotificationServiceTests {
     }
 
     private func state(
+        subscription: Subscription = .chatGPT,
         usedPercent: Double = 90,
         resetAt: TimeInterval = 1_000,
         windows: [QuotaWindow]? = nil
@@ -182,8 +183,8 @@ struct QuotaResetNotificationServiceTests {
         )]
         return SubscriptionRefreshState(
             subscriptions: [SubscriptionQuota(
-                subscription: .chatGPT,
-                result: .snapshot(try snapshot(windows: windows))
+                subscription: subscription,
+                result: .snapshot(try snapshot(subscription: subscription, windows: windows))
             )],
             availability: .live,
             updatedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: resetAt))
@@ -199,9 +200,9 @@ struct QuotaResetNotificationServiceTests {
         )
     }
 
-    private func snapshot(windows: [QuotaWindow]) throws -> QuotaSnapshot {
+    private func snapshot(subscription: Subscription = .chatGPT, windows: [QuotaWindow]) throws -> QuotaSnapshot {
         try QuotaSnapshot(
-            subscription: .chatGPT,
+            subscription: subscription,
             capturedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 1_000)),
             freshness: .live,
             windows: windows,

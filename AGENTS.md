@@ -4,39 +4,35 @@
 
 - Treat `CONTEXT.md` as the glossary and domain source of truth.
 - Read the applicable records in `docs/adr/` before changing related behavior.
-- Keep HermesUsageMonitor read-only with respect to provider quota data and Hermes runtime data.
+- Keep Hermes runtime data read-only. Provider quota data is read-only except for user-confirmed single-credit redemption. Before changing redemption or provider writes, read `docs/adr/0005-manual-reset-redemption-remote-write.md`.
 - Keep provider credentials, tokens, passwords, and auth contents out of logs, UI, notifications, tests, and summaries.
 - Use the existing Swift package structure and bounded context unless a design decision explicitly changes it.
-- Use GitHub Issues through `gh` for specifications, tickets, dependencies, comments, and closure.
+- Use GitHub Issues through `gh-axi` for specifications, tickets, dependencies, comments, and closure.
 - Close implementation tickets only after code review passes and the commit lands.
 - Push to main only through `make push-and-watch`: never bypass it with a bare `git push` to main.
 
 ## Build & install
 
-The Makefile in the repository root is the entry point for build and tooling commands
-(`make build`, `make verify`, `make check`, `make test`, `make clean`). Use it instead of
-calling scripts or `swift run` directly.
+Use the root Makefile for build and tooling commands instead of calling scripts or `swift run` directly. Run `make help` to discover targets.
 
-It is a thin wrapper: each target delegates to the scripts under `./scripts` or to a
-standard SwiftPM command. Those scripts remain the single source of truth for how the
-`.app` bundle is assembled, bundled, signed, and verified — the Makefile never duplicates
-build logic and never introduces a parallel path.
+Keep the Makefile a thin wrapper over `scripts/` or standard SwiftPM commands. The scripts own app assembly, bundling, signing, installation, and verification; do not duplicate that logic or introduce a parallel path.
 
-- `./scripts/` — holds the scripts and templates that back the Makefile targets (app
-  build/install, installed-app verification, Hermes compatibility check), plus the bridge
-  helper (`hermes_usage_bridge.py` + `hermes-usage-bridge`) and `Info.plist` shipped into
-  the app bundle.
+Before changing app packaging or the bridge, inspect `scripts/`, which contains the build/install and verification scripts, bundled bridge helper, and `Info.plist`.
 
 ## Dev cycle
 
 ### Issue tracker
 
-GitHub Issues for `taekwondodev/HermesUsageMonitor`, operated through `gh`. See `docs/agents/issue-tracker.md`.
+GitHub Issues for `taekwondodev/HermesUsageMonitor`, operated through `gh-axi`. Before tracker operations, read `docs/agents/issue-tracker.md`.
 
 ### Issue labels
 
-The canonical dev-cycle labels are `needs-grilling`, `ready-for-agent`, and `wontfix`. See `docs/agents/triage-labels.md`.
+Category, readiness, and activity labels, plus the `wontfix` closure label. Before classifying or transitioning issues, read `docs/agents/triage-labels.md`.
+
+### Delivery
+
+Default to direct delivery to `origin/main`. Before implementation or delivery, read `docs/agents/delivery.md` for route and target defaults.
 
 ### Domain docs
 
-This is a single-context repository. Read `CONTEXT.md` and the applicable records in `docs/adr/`. See `docs/agents/domain.md`.
+This is a single-context repository. Before exploring implementation work, read `docs/agents/domain.md`.

@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-08-18
 
+## Scope update: ChatGPT and Claude tracking
+
+OpenCode Go tracking and its `OpenCodeGoIcon` image set are removed. The provider asset list below is historical. `ChatGPTIcon` and `AnthropicIcon` contain the user-supplied artwork for ChatGPT and Claude respectively. Both use the same identity component, size, and placement. The asset-catalog decision remains accepted.
+
 ## Context
 
 The local app bundle currently generates an `.icns` icon from an SVG during packaging, while Xcode now contains a `Media.xcassets` catalog with an `AppIcon` set. Provider identity images are also currently stored as raw PNG/JPG resources.

@@ -813,7 +813,12 @@ struct AccountingDisplayBlock: Equatable, Identifiable {
                 requestsLabel: item.requests.map { "\($0) richieste" } ?? "Non disponibile",
                 inputLabel: tokenLabel(item.tokens?.input),
                 outputLabel: tokenLabel(item.tokens?.output),
-                costLabel: item.cost.map { "\($0.amount.description) \($0.currency)" } ?? "Non disponibile"
+                costLabel: item.cost.map { cost in
+                    let amount = cost.amount.formatted(
+                        .number.precision(.fractionLength(2)).locale(Locale(identifier: "it_IT"))
+                    )
+                    return "\(amount) \(cost.currency)"
+                } ?? "Non disponibile"
             )
         }
     }
@@ -843,10 +848,10 @@ private struct SubscriptionIdentityIcon: View {
 
     var body: some View {
         switch subscription {
-        case .opencodeGo:
-            icon(ProviderAssetCatalog.opencodeGo)
         case .chatGPT:
             icon(ProviderAssetCatalog.chatGPT)
+        case .claude:
+            icon(ProviderAssetCatalog.claude)
         }
     }
 
@@ -861,7 +866,7 @@ private struct SubscriptionIdentityIcon: View {
                     .interpolation(.high)
                     .scaledToFit()
                     .padding(1)
-            } else {
+            } else if subscription == .chatGPT {
                 Image(systemName: "questionmark.square.dashed")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -879,10 +884,10 @@ private struct SubscriptionIdentityIcon: View {
 }
 
 enum ProviderAssetCatalog {
-    static let opencodeGo = "OpenCodeGoIcon"
     static let chatGPT = "ChatGPTIcon"
+    static let claude = "AnthropicIcon"
 
-    static let all = [opencodeGo, chatGPT]
+    static let all = [chatGPT, claude]
 
     static func image(named name: String) -> NSImage? {
         NSImage(named: name)
@@ -1026,18 +1031,16 @@ private enum AccountingAvailability: Equatable {
 private extension Subscription {
     var displayName: String {
         switch self {
-        case .opencodeGo:
-            return "OpenCode Go"
         case .chatGPT:
             return "ChatGPT"
+        case .claude:
+            return "Claude"
         }
     }
 
     var symbol: String {
         switch self {
-        case .opencodeGo:
-            return "chevron.left.forwardslash.chevron.right"
-        case .chatGPT:
+        case .chatGPT, .claude:
             return "bubble.left.and.bubble.right.fill"
         }
     }

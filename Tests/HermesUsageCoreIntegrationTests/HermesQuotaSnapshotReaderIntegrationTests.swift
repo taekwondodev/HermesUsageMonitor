@@ -48,6 +48,26 @@ struct HermesQuotaSnapshotReaderIntegrationTests {
         #expect(snapshot.windows[1].resetAt == nil)
     }
 
+    @Test("reads persisted Claude Fable identity without merging it into Weekly")
+    func readsPersistedClaudeFable() throws {
+        let fileURL = try makeTemporarySnapshot("""
+        {"version":1,"subscription":"claude","capturedAt":"2030-03-17T12:00:00Z","freshness":"persisted","source":"hermes-account-usage","windows":[
+          {"kind":"weekly","label":"Weekly","usedPercent":66},
+          {"kind":"fable-weekly","label":"Fable","usedPercent":74,"resetAt":"2030-03-24T17:00:00Z"}
+        ]}
+        """)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        guard case let .snapshot(snapshot) = HermesQuotaSnapshotReader(fileURL: fileURL).read() else {
+            Issue.record("Expected persisted Claude quota")
+            return
+        }
+        #expect(snapshot.subscription == .claude)
+        #expect(snapshot.freshness == .persisted)
+        #expect(snapshot.windows.map(\.kind) == [.weekly, try .unknown("fable-weekly")])
+        #expect(snapshot.windows.map(\.usedPercent) == [66, 74])
+        #expect(snapshot.windows[1].resetAt?.at.date == ISO8601DateFormatter().date(from: "2030-03-24T17:00:00Z"))
+    }
+
     @Test("returns sourceMissing when Hermes has no snapshot")
     func returnsMissingSource() {
         let fileURL = FileManager.default.temporaryDirectory
@@ -91,7 +111,7 @@ struct HermesQuotaSnapshotReaderIntegrationTests {
             """
             {
               "version": 2,
-              "subscription": "opencode-go",
+              "subscription": "chatgpt",
               "capturedAt": "2030-03-17T12:00:00Z",
               "freshness": "persisted",
               "source": "hermes-account-usage",
