@@ -4,3 +4,10 @@
 xcuserdata/
 DerivedData/
 .hermes/
+
+# Python bytecode (bridge script and its tests)
+__pycache__/
+*.py[cod]
+
+# Session handoff notes
+HANDOFF.md

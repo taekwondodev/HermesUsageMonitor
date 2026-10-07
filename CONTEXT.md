@@ -24,7 +24,7 @@ HermesUsageMonitor monitors quota windows observed through Hermes Agent.
 - **Quota bar palette**: quota `ProgressView` bars keep the native macOS track, geometry, and padding. Positive values use the semantic tint from `color(for:freshness:)` (green, orange, red, or gray). At an exact provider-reported zero, a transparent tint hides the native minimum fill cap while leaving the groove visible, so the bar reads as empty rather than consumed. Quota bars never inherit the system accent color (see `docs/adr/0003-quota-bar-colors-and-manual-reset-design.md`).
 - **Manual reset section design source**: the Figma component `reset-manuale-sections` is the visual source of truth for the Reset manuale section; colors and layout flow one-way into `ManualResetDesignToken` and change only when the component changes.
 
-The app treats Hermes and provider quota data as read-only observations. Local token/request/cost accounting cannot establish an official quota reset.
+The app treats Hermes runtime data as read-only. Provider quota data is read-only except for user-confirmed single-credit redemption governed by `docs/adr/0005-manual-reset-redemption-remote-write.md`; read that record before changing redemption or provider writes. Local token/request/cost accounting cannot establish an official quota reset.
 
 ## Visual asset terms
 

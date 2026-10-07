@@ -1,16 +1,20 @@
-# Domain Docs
+# Domain docs
 
-This is a single-context repository.
+This repository has one bounded context.
 
-Before exploring implementation work, read:
+## Before exploring implementation work
 
-- `CONTEXT.md`
-- `docs/adr/`
+- Read root `CONTEXT.md`.
+- Read records in `docs/adr/` that govern the behavior being investigated or changed.
 
-Use the terminology defined in `CONTEXT.md` in issue titles, tickets, tests, and implementation notes. Flag conflicts with existing ADRs instead of silently overriding them.
+Use glossary terms in issue titles, specifications, tickets, tests, and implementation notes. If a needed term is missing, reconsider the wording or note the gap for `/domain-modeling`.
 
-Domain context:
+Surface conflicts with accepted ADRs rather than silently overriding them.
 
-- root `CONTEXT.md`;
-- system-wide ADRs in `docs/adr/`;
-- no context map because this repository has one bounded context.
+## Layout and ownership
+
+- `CONTEXT.md` owns domain terminology.
+- `docs/adr/` owns qualifying decision rationale.
+- `AGENTS.md` owns concise repository-wide operational rules.
+
+There is no context map or per-package domain layout. Reuse existing authoritative records; create glossary entries or ADRs only when a resolved term or qualifying decision requires them. Missing optional domain documents are not a setup blocker.
