@@ -8,7 +8,7 @@ struct ProfileQuotaAggregationTests {
         let observations = [
             try observation(
                 profile: "work",
-                subscription: .opencodeGo,
+                subscription: .chatGPT,
                 capturedAt: 100,
                 usedPercent: 20
             ),
@@ -24,10 +24,10 @@ struct ProfileQuotaAggregationTests {
             source: StubSource(observations: observations)
         ).read()
 
-        #expect(result.map(\.subscription) == [.opencodeGo, .chatGPT])
+        #expect(result.map(\.subscription) == [.chatGPT, .claude])
         #expect(result.count == 2)
+        #expect(result[1].result == .unavailable(.sourceMissing))
         #expect(result[0].result.isSnapshot)
-        #expect(result[1].result.isSnapshot)
     }
 
     @Test("does not sum duplicate quota snapshots from profiles")
@@ -51,7 +51,7 @@ struct ProfileQuotaAggregationTests {
             source: StubSource(observations: observations)
         ).read()
 
-        guard case let .snapshot(snapshot) = result[1].result else {
+        guard case let .snapshot(snapshot) = result[0].result else {
             Issue.record("Expected a ChatGPT snapshot")
             return
         }
@@ -63,13 +63,13 @@ struct ProfileQuotaAggregationTests {
         let observations = [
             try observation(
                 profile: "old",
-                subscription: .opencodeGo,
+                subscription: .chatGPT,
                 capturedAt: 100,
                 usedPercent: 10
             ),
             try observation(
                 profile: "new",
-                subscription: .opencodeGo,
+                subscription: .chatGPT,
                 capturedAt: 200,
                 usedPercent: 80
             )
@@ -80,7 +80,7 @@ struct ProfileQuotaAggregationTests {
         ).read()
 
         guard case let .snapshot(snapshot) = result[0].result else {
-            Issue.record("Expected an OpenCode Go snapshot")
+            Issue.record("Expected a ChatGPT snapshot")
             return
         }
         #expect(snapshot.windows[0].usedPercent == 80)
@@ -109,35 +109,12 @@ struct ProfileQuotaAggregationTests {
             source: StubSource(observations: observations)
         ).read()
 
-        guard case let .snapshot(snapshot) = result[1].result else {
+        guard case let .snapshot(snapshot) = result[0].result else {
             Issue.record("Expected a ChatGPT snapshot")
             return
         }
         #expect(snapshot.freshness == .live)
         #expect(snapshot.windows[0].usedPercent == 20)
-    }
-
-    @Test("rejects a profile observation with a mismatched subscription")
-    func rejectsMismatchedSubscription() throws {
-        let snapshot = try QuotaSnapshot(
-            subscription: .chatGPT,
-            capturedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 100)),
-            windows: [try QuotaWindow(
-                kind: .weekly,
-                label: "Weekly",
-                usedPercent: 10
-            )],
-            source: try QuotaSource(identifier: "profile")
-        )
-
-        #expect(throws: QuotaDomainError.invalidSnapshot) {
-            _ = try ProfileQuotaObservation(
-                profile: try HermesProfileID(value: "profile"),
-                subscription: .opencodeGo,
-                observedAt: QuotaTimestamp(date: Date(timeIntervalSince1970: 100)),
-                result: .snapshot(snapshot)
-            )
-        }
     }
 
     private func observation(

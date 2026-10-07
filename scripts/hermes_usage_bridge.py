@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 PROVIDERS = (
     ("openai-codex", "chatgpt"),
-    ("opencode-go", "opencode-go"),
+    ("anthropic", "claude"),
 )
 TIMEOUT_SECONDS = 15.0
 _ACTIVE_WORKERS: list[Any] = []
@@ -34,7 +34,6 @@ class BridgeError(Exception):
 @dataclass(frozen=True)
 class UsageAPI:
     fetch_account_usage: Callable[[str], Any]
-    resolve_runtime_provider: Callable[..., Any]
     httpx: Any
     resolve_codex_usage_credentials: Callable[..., Any] | None = None
     codex_backend_urls: Callable[..., Any] | None = None
@@ -103,26 +102,22 @@ def load_usage_api(root: Path) -> UsageAPI:
         sys.path.insert(0, root_text)
     try:
         account_usage = importlib.import_module("agent.account_usage")
-        runtime_provider = importlib.import_module("hermes_cli.runtime_provider")
         httpx = importlib.import_module("httpx")
     except Exception:
         raise BridgeError("Hermes usage API could not be imported") from None
 
     fetch = getattr(account_usage, "fetch_account_usage", None)
-    resolve_runtime = getattr(runtime_provider, "resolve_runtime_provider", None)
     resolve_codex = getattr(account_usage, "_resolve_codex_usage_credentials", None)
     codex_urls = getattr(account_usage, "_codex_backend_urls", None)
     if (
         not callable(fetch)
-        or not callable(resolve_runtime)
         or not callable(getattr(httpx, "Client", None))
     ):
         raise BridgeError("Hermes usage API is incompatible")
-    for module in (account_usage, runtime_provider):
-        module_file = Path(str(getattr(module, "__file__", ""))).resolve()
-        if root not in module_file.parents:
-            raise BridgeError("Hermes usage API resolved outside the selected checkout")
-    return UsageAPI(fetch, resolve_runtime, httpx, resolve_codex, codex_urls)
+    module_file = Path(str(getattr(account_usage, "__file__", ""))).resolve()
+    if root not in module_file.parents:
+        raise BridgeError("Hermes usage API resolved outside the selected checkout")
+    return UsageAPI(fetch, httpx, resolve_codex, codex_urls)
 
 
 def classify_window(label: str) -> str | None:
@@ -163,6 +158,8 @@ def window_payload(window: Any, subscription: str) -> dict[str, Any] | None:
         if not technical_kind or not valid_window_label(raw_technical_kind):
             return None
         kind = classify_window(technical_kind)
+        if kind is None and subscription == "claude" and technical_kind == "fable-weekly":
+            kind = "fable-weekly"
         if kind is None and subscription != "chatgpt":
             return None
         kind = kind or raw_technical_kind
@@ -213,6 +210,10 @@ def snapshot_payload(provider: str, subscription: str, snapshot: Any) -> Provide
             seen_kinds[kind] = occurrence
             used_kinds.add(candidate)
             window["kind"] = candidate
+    elif subscription == "claude":
+        kinds = [window["kind"] for window in windows]
+        if len(kinds) != len(set(kinds)):
+            return unavailable(provider, subscription, "quota data malformed")
     if not windows:
         return unavailable(provider, subscription, "quota unavailable")
     captured_at = getattr(snapshot, "fetched_at", None)
@@ -237,85 +238,6 @@ def unavailable(provider: str, subscription: str, reason: str) -> ProviderResult
         provider=provider,
         subscription=subscription,
         payload={"status": "unavailable", "subscription": subscription, "reason": reason},
-    )
-
-
-def opencode_snapshot(api: UsageAPI) -> Any | None:
-    runtime = api.resolve_runtime_provider(requested="opencode-go")
-    token = str(runtime.get("api_key", "") or "").strip()
-    if not token:
-        return None
-    base_url = str(runtime.get("base_url", "") or "https://opencode.ai/zen/go/v1").rstrip("/")
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "x-api-key": token,
-        "Accept": "application/json",
-        "User-Agent": "hermes-usage-bridge",
-    }
-    with api.httpx.Client(timeout=TIMEOUT_SECONDS) as client:
-        response = client.get(f"{base_url}/usage", headers=headers)
-        response.raise_for_status()
-    payload = response.json() or {}
-    body = payload.get("data") if isinstance(payload, dict) else None
-    body = body if isinstance(body, dict) else payload if isinstance(payload, dict) else {}
-    raw_windows = body.get("windows") or []
-    if not raw_windows and isinstance(body.get("usage"), dict):
-        raw_windows = [
-            {
-                "kind": "rolling-5h" if key == "rolling" else key,
-                "label": "5 hours" if key == "rolling" else key.title(),
-                "used_percent": value.get("percent"),
-                "reset_at": value.get("resetsAt"),
-            }
-            for key, value in body["usage"].items()
-            if isinstance(value, dict)
-        ]
-    windows = []
-    for raw in raw_windows:
-        if not isinstance(raw, dict):
-            continue
-        raw_technical_kind = raw.get("kind")
-        if raw_technical_kind is None:
-            raw_technical_kind = raw.get("type")
-        has_technical_kind = raw_technical_kind is not None
-        technical_kind = normalize_identifier(str(raw_technical_kind or ""))
-        label = str(raw.get("label") or {
-            "rolling-5h": "5 hours",
-            "weekly": "Weekly",
-            "monthly": "Monthly",
-        }.get(technical_kind, technical_kind)).strip()
-        if has_technical_kind:
-            if technical_kind == "rolling":
-                kind, label = "rolling-5h", "5 hours"
-            else:
-                kind = classify_window(technical_kind)
-                if kind is None:
-                    return None
-        else:
-            kind = classify_window(label) or ""
-        used = raw.get("usedPercent", raw.get("used_percent", raw.get("percent")))
-        if (
-            kind
-            and isinstance(used, (int, float))
-            and not isinstance(used, bool)
-            and math.isfinite(float(used))
-            and 0 <= float(used) <= 100
-        ):
-            windows.append(SimpleNamespace(
-                kind=kind,
-                label=label,
-                used_percent=float(used),
-                reset_at=parse_datetime(raw.get("resetAt", raw.get("reset_at", raw.get("resetsAt")))),
-                detail=raw.get("detail"),
-            ))
-    if not windows:
-        return None
-    return SimpleNamespace(
-        source="usage_api",
-        fetched_at=utc_now(),
-        plan=body.get("plan") if isinstance(body.get("plan"), str) else None,
-        unavailable_reason=None,
-        windows=tuple(windows),
     )
 
 
@@ -460,14 +382,185 @@ def _is_http_rejection(httpx_module: Any, error: Exception) -> bool:
     return isinstance(error, http_error)
 
 
-def collect_provider(provider: str, subscription: str, api: UsageAPI) -> ProviderResult:
+def _module_is_inside(module: Any, root: Path) -> bool:
+    module_path = Path(str(getattr(module, "__file__", ""))).resolve()
+    return module_path.is_file() and root.resolve() in module_path.parents
+
+
+def _anthropic_pool_entries(auth: Any) -> list[Any]:
+    # Hermes' pool reader calls a loader that copies corrupt auth stores. Use
+    # its path helpers instead, preserving profile-over-global precedence
+    # without entering that write-capable recovery path.
+    for name in ("_auth_file_path", "_global_auth_file_path"):
+        path_reader = getattr(auth, name, None)
+        if not callable(path_reader):
+            continue
+        try:
+            path = path_reader()
+            if not isinstance(path, (str, Path)):
+                continue
+            store = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+            pool = store.get("credential_pool") if isinstance(store, dict) else None
+            entries = pool.get("anthropic") if isinstance(pool, dict) else None
+            if isinstance(entries, list) and entries:
+                return entries
+        except (OSError, ValueError, TypeError):
+            continue
+    return []
+
+
+def _anthropic_token(root: Path) -> str | None:
+    """Find a currently usable OAuth token using only existing credential readers."""
+    try:
+        credentials = importlib.import_module("agent.anthropic_credentials")
+        auth = importlib.import_module("hermes_cli.auth")
+    except Exception:
+        return None
+    if not _module_is_inside(credentials, root) or not _module_is_inside(auth, root):
+        return None
+    is_oauth = getattr(credentials, "_is_oauth_token", None)
+    if not callable(is_oauth):
+        return None
+
+    # Environment credentials are profile-scoped by Hermes' read helper.
+    first_env = getattr(credentials, "_first_env", None)
+    if callable(first_env):
+        try:
+            token = first_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+            if isinstance(token, str) and is_oauth(token):
+                return token
+        except Exception:
+            pass
+
+    for entry in _anthropic_pool_entries(auth):
+        if not isinstance(entry, dict) or entry.get("auth_type") != "oauth":
+            continue
+        token = entry.get("access_token")
+        if not isinstance(token, str) or not is_oauth(token):
+            continue
+        expiry = entry.get("expires_at")
+        if expiry is None:
+            expiry = entry.get("expires_at_ms")
+            if expiry is not None:
+                try:
+                    expiry = float(expiry) / 1000.0
+                except (TypeError, ValueError, OverflowError):
+                    continue
+        if expiry is not None:
+            try:
+                if not math.isfinite(float(expiry)) or float(expiry) <= time.time():
+                    continue
+            except (TypeError, ValueError, OverflowError):
+                continue
+        return token
+
+    valid = getattr(credentials, "is_claude_code_token_valid", None)
+    for reader_name in ("read_hermes_oauth_credentials", "read_claude_code_credentials"):
+        reader = getattr(credentials, reader_name, None)
+        if not callable(reader) or not callable(valid):
+            continue
+        try:
+            record = reader()
+            token = record.get("accessToken") if isinstance(record, dict) else None
+            if isinstance(token, str) and is_oauth(token) and valid(record):
+                return token
+        except Exception:
+            continue
+    return None
+
+
+def _anthropic_snapshot(payload: Any) -> Any:
+    """Validate Anthropic's native quota schema and build the bridge snapshot."""
+    if not isinstance(payload, dict):
+        raise ValueError("malformed provider payload")
+    windows: list[Any] = []
+    if "limits" in payload:
+        limits = payload["limits"]
+        if not isinstance(limits, list):
+            raise ValueError("malformed limits")
+        for item in limits:
+            if not isinstance(item, dict):
+                raise ValueError("malformed limit")
+            limit_kind = item.get("kind")
+            scope = item.get("scope")
+            model = scope.get("model") if isinstance(scope, dict) else None
+            if limit_kind == "session":
+                kind, label = "rolling-5h", "5 hours"
+            elif limit_kind == "weekly_all":
+                kind, label = "weekly", "Weekly"
+            elif limit_kind == "weekly_scoped" and isinstance(model, dict) and model.get("display_name") == "Fable":
+                kind, label = "fable-weekly", "Fable"
+            else:
+                continue
+            percent = item.get("percent")
+            if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not math.isfinite(float(percent)) or not 0 <= float(percent) <= 100:
+                raise ValueError("malformed percent")
+            reset = item.get("resets_at")
+            parsed_reset = parse_datetime(reset) if reset is not None else None
+            if reset is not None and parsed_reset is None:
+                raise ValueError("malformed reset")
+            windows.append(SimpleNamespace(
+                kind=kind, label=label, used_percent=float(percent), reset_at=parsed_reset, detail=None,
+            ))
+    else:
+        for key, kind, label in (
+            ("five_hour", "rolling-5h", "5 hours"),
+            ("seven_day", "weekly", "Weekly"),
+        ):
+            item = payload.get(key)
+            if item is None:
+                continue
+            if not isinstance(item, dict):
+                raise ValueError("malformed fallback limit")
+            percent = item.get("utilization")
+            if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not math.isfinite(float(percent)) or not 0 <= float(percent) <= 100:
+                raise ValueError("malformed percent")
+            reset = item.get("resets_at")
+            parsed_reset = parse_datetime(reset) if reset is not None else None
+            if reset is not None and parsed_reset is None:
+                raise ValueError("malformed reset")
+            windows.append(SimpleNamespace(kind=kind, label=label, used_percent=float(percent), reset_at=parsed_reset, detail=None))
+    return SimpleNamespace(
+        source="oauth_usage_api", fetched_at=utc_now(), plan=None,
+        unavailable_reason=None, windows=tuple(windows),
+    )
+
+
+def fetch_anthropic_account_usage(root: Path, httpx: Any) -> ProviderResult:
+    token = _anthropic_token(root)
+    if not token:
+        return unavailable("anthropic", "claude", "OAuth credentials unavailable")
+    try:
+        with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
+            response = client.get(
+                "https://api.anthropic.com/api/oauth/usage",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "anthropic-beta": "oauth-2025-04-20",
+                    "User-Agent": "claude-code/2.1.0",
+                },
+            )
+            response.raise_for_status()
+            snapshot = _anthropic_snapshot(response.json())
+    except Exception:
+        return unavailable("anthropic", "claude", "provider unavailable")
+    return snapshot_payload("anthropic", "claude", snapshot)
+
+
+def collect_provider(provider: str, subscription: str, api: UsageAPI, root: Path | None = None) -> ProviderResult:
+    if provider == "anthropic":
+        if root is None:
+            return unavailable(provider, subscription, "provider unavailable")
+        return fetch_anthropic_account_usage(root, api.httpx)
     manual_resets = (
         codex_manual_reset_payload(api)
         if provider == "openai-codex"
         else None
     )
     try:
-        snapshot = opencode_snapshot(api) if provider == "opencode-go" else api.fetch_account_usage(provider)
+        snapshot = api.fetch_account_usage(provider)
     except Exception:
         result = unavailable(provider, subscription, "provider unavailable")
     else:
@@ -607,7 +700,7 @@ def main() -> int:
         if args.worker:
             api = load_usage_api(root)
             provider, subscription = next(item for item in PROVIDERS if item[0] == args.worker)
-            result = collect_provider(provider, subscription, api)
+            result = collect_provider(provider, subscription, api, root)
             print(json.dumps(result.payload, ensure_ascii=False, separators=(",", ":")))
             return 0
         payload = collect(root)

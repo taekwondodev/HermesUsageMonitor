@@ -24,13 +24,13 @@ struct HermesAccountingReaderIntegrationTests {
         #expect(values[1].cost == nil)
     }
 
-    @Test("reads multiple profiles and commercial subscriptions")
+    @Test("ignores unsupported subscriptions while preserving partial accounting")
     func readsMultipleProfiles() async throws {
         let fileURL = try makeTemporaryFile(
             """
             {"version":1,"entries":[
               {"subscription":"nous-portal","profile":"one","requests":3,"models":["claude"],"cost":{"amount":0.5,"currency":"USD"}},
-              {"subscription":"opencode-go","profile":"two","tokens":{"input":10},"requests":1,"models":["gpt-5"]}
+              {"subscription":"chatgpt","profile":"two","tokens":{"input":10},"requests":1,"models":["gpt-5"]}
             ]}
             """
         )
@@ -42,9 +42,9 @@ struct HermesAccountingReaderIntegrationTests {
             Issue.record("Expected available accounting")
             return
         }
-        #expect(grouped[.chatGPT] == nil)
-        #expect(grouped[.opencodeGo]?.first?.profile == "two")
-        #expect(grouped[.opencodeGo]?.first?.tokens?.output == nil)
+        #expect(Set(grouped.keys) == [.chatGPT])
+        #expect(grouped[.chatGPT]?.first?.profile == "two")
+        #expect(grouped[.chatGPT]?.first?.tokens?.output == nil)
     }
 
     private func makeTemporaryFile(_ json: String) throws -> URL {

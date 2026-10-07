@@ -173,7 +173,7 @@ struct HermesManualResetBridgeIntegrationTests {
     func rejectsMismatchedManualResetSubscription() async {
         let fixture = Data(
             """
-            {"providers":{"openai-codex":{"status":"available","subscription":"opencode-go","manualResets":{"status":"available","capturedAt":"2030-03-17T12:00:00Z","availableCount":1,"applicableAvailableCount":1,"credits":[]}}}}
+            {"providers":{"openai-codex":{"status":"available","subscription":"unsupported","manualResets":{"status":"available","capturedAt":"2030-03-17T12:00:00Z","availableCount":1,"applicableAvailableCount":1,"credits":[]}}}}
             """.utf8
         )
 

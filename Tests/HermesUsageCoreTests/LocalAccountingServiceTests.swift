@@ -31,7 +31,7 @@ struct LocalAccountingServiceTests {
         #expect(grouped[.chatGPT]?.count == 2)
         #expect(grouped[.chatGPT]?.contains { $0.cost != nil } == true)
         #expect(grouped[.chatGPT]?.contains { $0.tokens != nil } == true)
-        #expect(grouped[.opencodeGo] == nil)
+        #expect(Set(grouped.keys) == [.chatGPT])
     }
 
     @Test("passes a thirty day window from its refresh clock to the source")

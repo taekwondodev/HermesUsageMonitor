@@ -3,48 +3,22 @@ import Testing
 @testable import HermesUsageCore
 
 struct QuotaDomainTests {
-    @Test("OpenCode Go quota windows use the fixed display order")
-    func opencodeGoDisplayOrder() throws {
-        let windows = try [
-            QuotaWindow(kind: .monthly, label: "Monthly", usedPercent: 95, resetAt: QuotaReset(date: Date(timeIntervalSince1970: 3_000))),
-            QuotaWindow(kind: .rollingFiveHours, label: "5 hour", usedPercent: 10, resetAt: QuotaReset(date: Date(timeIntervalSince1970: 1_000))),
-            QuotaWindow(kind: .weekly, label: "Weekly", usedPercent: 50, resetAt: QuotaReset(date: Date(timeIntervalSince1970: 2_000)))]
-
-        #expect(
-            QuotaWindowDisplayOrder.windows(for: .opencodeGo, windows: windows).map(\.kind) == [
-                .rollingFiveHours,
-                .weekly,
-                .monthly
-            ]
-        )
-
-        let changedValues = try [
-            QuotaWindow(kind: .monthly, label: "Monthly", usedPercent: 1, resetAt: QuotaReset(date: Date(timeIntervalSince1970: 1_000))),
-            QuotaWindow(kind: .rollingFiveHours, label: "5 hour", usedPercent: 99, resetAt: QuotaReset(date: Date(timeIntervalSince1970: 3_000))),
-            QuotaWindow(kind: .weekly, label: "Weekly", usedPercent: 2, resetAt: QuotaReset(date: Date(timeIntervalSince1970: 2_000)))]
-
-        #expect(
-            QuotaWindowDisplayOrder.windows(for: .opencodeGo, windows: changedValues).map(\.kind) == [
-                .rollingFiveHours,
-                .weekly,
-                .monthly
-            ]
-        )
+    @Test("tracks ChatGPT and Claude subscriptions")
+    func tracksChatGPTAndClaude() {
+        #expect(Subscription.allCases == [.chatGPT, .claude])
     }
 
-    @Test("OpenCode Go display order omits no reported supported windows")
-    func opencodeGoDisplayOrderPreservesPartialSnapshots() throws {
+    @Test("Claude keeps five-hour, weekly, and Fable windows distinct and ordered")
+    func claudeDisplayOrderPreservesFable() throws {
+        let fable = try QuotaWindowKind.unknown("fable-weekly")
         let windows = try [
-            QuotaWindow(kind: .monthly, label: "Monthly", usedPercent: 95),
-            QuotaWindow(kind: .rollingFiveHours, label: "5 hour", usedPercent: 5)
+            QuotaWindow(kind: fable, label: "Fable", usedPercent: 74),
+            QuotaWindow(kind: .weekly, label: "Weekly", usedPercent: 66),
+            QuotaWindow(kind: .rollingFiveHours, label: "5 hours", usedPercent: 100)
         ]
-
-        #expect(
-            QuotaWindowDisplayOrder.windows(for: .opencodeGo, windows: windows).map(\.kind) == [
-                .rollingFiveHours,
-                .monthly
-            ]
-        )
+        let ordered = QuotaWindowDisplayOrder.windows(for: .claude, windows: windows)
+        #expect(ordered.map(\.kind) == [.rollingFiveHours, .weekly, fable])
+        #expect(ordered.map(\.usedPercent) == [100, 66, 74])
     }
 
     @Test("ChatGPT keeps its weekly quota window")

@@ -71,8 +71,8 @@ public struct HermesStateDBAccountingReader: LocalAccountingSource, Sendable {
         switch provider.lowercased() {
         case "openai-codex", "chatgpt":
             return .chatGPT
-        case "opencode-go":
-            return .opencodeGo
+        case "anthropic", "claude-subscription-directsdk-experimental":
+            return .claude
         default:
             return nil
         }
