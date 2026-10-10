@@ -617,6 +617,18 @@ class HermesUsageBridgeTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             return json.loads(completed.stdout)
 
+    def test_worker_disables_hermes_lazy_relaunch(self):
+        calls = []
+
+        def fake_popen(command, **kwargs):
+            calls.append((command, kwargs))
+            return object()
+
+        bridge.start_worker("openai-codex", Path("/tmp/hermes"), fake_popen)
+
+        _command, options = calls[0]
+        self.assertEqual(options["env"]["HERMES_DISABLE_LAZY_INSTALLS"], "1")
+
     def test_missing_capability_is_fatal(self):
         original_import = bridge.importlib.import_module
         bridge.importlib.import_module = lambda _name: SimpleNamespace(fetch_account_usage=None)

@@ -575,6 +575,8 @@ def collect_provider(provider: str, subscription: str, api: UsageAPI, root: Path
 
 
 def start_worker(provider: str, root: Path, popen: Callable[..., Any] = subprocess.Popen) -> Any:
+    env = os.environ.copy()
+    env["HERMES_DISABLE_LAZY_INSTALLS"] = "1"
     return popen(
         [
             sys.executable,
@@ -589,7 +591,7 @@ def start_worker(provider: str, root: Path, popen: Callable[..., Any] = subproce
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
-        env=os.environ.copy(),
+        env=env,
     )
 
 
